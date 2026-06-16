@@ -163,19 +163,38 @@ export function PredictionForm({
 
   return (
     <form
-      className="w-full rounded-lg border border-border bg-surface/95 p-4 text-left shadow-[0_16px_40px_rgba(17,24,39,0.08)] backdrop-blur sm:p-6"
+      className="w-full rounded-xl border border-border bg-surface/95 p-4 text-left shadow-[0_20px_50px_rgba(17,24,39,0.10)] ring-1 ring-navy/5 backdrop-blur sm:p-6"
       onSubmit={handleSubmit(submitForm)}
       noValidate
     >
-      <div className="mb-5 border-b border-border pb-4">
-        <div className="mb-4 inline-flex rounded-md border border-border bg-muted p-1">
+      <div className="mb-5 border-b border-border pb-5">
+        <div className="mb-4 flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-navy/10 text-navy">
+            <WandSparkles aria-hidden size={18} />
+          </span>
+          <div>
+            <h2 className="text-xl font-extrabold leading-tight text-foreground sm:text-2xl">
+              Score &amp; Rank Calculator
+            </h2>
+            <p className="text-xs font-medium text-muted-foreground">
+              Choose your exam and paste the answer-key URL.
+            </p>
+          </div>
+        </div>
+        <div
+          className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted p-1"
+          role="tablist"
+          aria-label="Exam type"
+        >
           {examTabs.map(([tab, label]) => (
             <button
               key={tab}
               type="button"
-              className={`rounded px-4 py-2 text-sm font-bold transition ${
+              role="tab"
+              aria-selected={activeTab === tab}
+              className={`rounded-md px-3 py-2 text-sm font-bold transition ${
                 activeTab === tab
-                  ? 'bg-navy text-white'
+                  ? 'bg-navy text-white shadow-sm'
                   : 'text-muted-foreground hover:bg-surface hover:text-foreground'
               }`}
               onClick={() => switchTab(tab)}
@@ -184,30 +203,31 @@ export function PredictionForm({
             </button>
           ))}
         </div>
-        <h2 className="text-2xl font-extrabold text-foreground">
-          Score Calculator
-        </h2>
       </div>
 
       {comingSoonTab ? (
-        <div className="flex min-h-[340px] items-center justify-center rounded-md border border-dashed border-border bg-cream px-4 py-10 text-center">
+        <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed border-navy/25 bg-cream px-4 py-12 text-center">
           <div className="max-w-md">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-md bg-navy/10 text-navy">
-              <Clock3 className="animate-pulse" aria-hidden size={28} />
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-navy/10 text-navy ring-8 ring-navy/[0.04]">
+              <Clock3 className="animate-pulse" aria-hidden size={30} />
             </div>
-            <p className="text-2xl font-extrabold text-foreground">
+            <p className="text-xl font-extrabold text-foreground sm:text-2xl">
               {comingSoonTab === 'ssc'
-                ? 'SSC calculator is coming soon.'
-                : 'Other exam calculators are coming soon.'}
+                ? 'SSC calculator is coming soon'
+                : 'More exam calculators are coming soon'}
             </p>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+            <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-muted-foreground">
               We are preparing parser rules, cutoff logic, and rank pools for
-              this section. RRB calculation is live now.
+              this section. The RRB calculator is fully live right now.
             </p>
-            <div className="mx-auto mt-5 inline-flex items-center gap-2 rounded-md border border-yellow bg-yellow/20 px-3 py-2 text-sm font-bold text-navy">
-              <BellRing aria-hidden size={17} />
-              New exam modules will appear here once enabled.
-            </div>
+            <button
+              type="button"
+              onClick={() => switchTab('rrb')}
+              className="mx-auto mt-5 inline-flex items-center gap-2 rounded-md bg-navy px-4 py-2.5 text-sm font-bold text-white transition hover:bg-navy/90"
+            >
+              <BellRing aria-hidden size={16} />
+              Use the RRB calculator
+            </button>
           </div>
         </div>
       ) : (
@@ -330,7 +350,7 @@ export function PredictionForm({
             <Button
               type="submit"
               size="lg"
-              className="w-full text-base"
+              className="w-full text-base shadow-[0_12px_28px_rgba(36,49,143,0.28)]"
               disabled={isSubmitting}
             >
               {isSubmitting ? (
@@ -338,16 +358,36 @@ export function PredictionForm({
               ) : (
                 <WandSparkles aria-hidden size={18} />
               )}
-              Check Your Rank & Score
+              {isSubmitting ? 'Calculating…' : 'Check Your Rank & Score'}
             </Button>
             {isSubmitting && (
-              <div className="rounded-md border border-navy/20 bg-navy/5 p-3">
-                <div className="flex items-center gap-3 text-sm font-bold text-navy">
-                  <Loader2 className="animate-spin" aria-hidden size={17} />
-                  Reading answer key and calculating marks...
+              <div
+                className="rounded-lg border border-navy/15 bg-navy/[0.04] p-4"
+                role="status"
+                aria-live="polite"
+              >
+                <div className="flex items-center gap-2 text-sm font-bold text-navy">
+                  <Loader2 className="animate-spin" aria-hidden size={16} />
+                  Processing your response sheet…
                 </div>
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-navy/15">
-                  <div className="h-full w-2/3 animate-pulse rounded-full bg-navy" />
+                <div className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-navy/15">
+                  <div className="animate-indeterminate absolute inset-y-0 w-1/3 rounded-full bg-navy" />
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {[
+                    'Reading answer key',
+                    'Calculating marks',
+                    'Predicting rank',
+                  ].map((step, index) => (
+                    <div
+                      key={step}
+                      className="animate-step-pulse flex items-center gap-1.5 text-[11px] font-semibold text-navy"
+                      style={{ animationDelay: `${index * 0.45}s` }}
+                    >
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-navy" />
+                      {step}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

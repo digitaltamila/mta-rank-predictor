@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
   CheckCircle2,
+  ChevronDown,
   DatabaseZap,
   FileSearch,
   Menu,
@@ -20,28 +21,15 @@ import { Card } from './components/ui/card'
 import { examGroups, faqs, features, workflowSteps } from './lib/landing-content'
 
 const navItems = ['Features', 'Exams', 'FAQ']
-const heroInsights = [
-  {
-    label: 'Response sheet parser',
-    value: 'HTML + URL',
-    icon: FileSearch,
-    color: 'text-blue',
-    background: 'bg-blue/10',
-  },
-  {
-    label: 'Secure candidate records',
-    value: 'Stored',
-    icon: ShieldCheck,
-    color: 'text-green',
-    background: 'bg-green/10',
-  },
-  {
-    label: 'Rank signal',
-    value: 'Live',
-    icon: TrendingUp,
-    color: 'text-red',
-    background: 'bg-red/10',
-  },
+const heroTrustItems = [
+  { label: 'Secure URL parsing', icon: ShieldCheck },
+  { label: 'Instant score & rank', icon: FileSearch },
+  { label: 'Free for candidates', icon: CheckCircle2 },
+]
+const heroStats = [
+  ['25K+', 'Response sheets parsed'],
+  ['12+', 'Exams supported'],
+  ['<10s', 'Average result time'],
 ]
 
 const ResultSummary = lazy(() =>
@@ -53,84 +41,92 @@ const ResultSummary = lazy(() =>
 function HeroInsightVisual() {
   return (
     <motion.div
-      className="relative overflow-hidden rounded-lg border border-border bg-surface p-4 shadow-[0_20px_55px_rgba(17,24,39,0.12)]"
+      className="relative overflow-hidden rounded-xl border border-border bg-surface shadow-[0_24px_60px_rgba(17,24,39,0.14)]"
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.12, duration: 0.5, ease: 'easeOut' }}
     >
-      <div className="absolute inset-x-0 top-0 h-1 bg-red" />
-      <div className="flex items-center justify-between border-b border-border pb-4">
-        <div>
-          <p className="text-xs font-bold uppercase text-muted-foreground">
-            Live Engine
-          </p>
-          <p className="mt-1 text-lg font-extrabold text-foreground">
-            Rank intelligence
+      <div className="flex items-center justify-between bg-navy px-4 py-3 text-white">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green opacity-75" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green" />
+          </span>
+          <p className="text-xs font-bold uppercase tracking-wide">
+            Live rank engine
           </p>
         </div>
         <motion.div
-          className="flex h-12 w-12 items-center justify-center rounded-md bg-yellow/25 text-navy"
-          animate={{ rotate: [0, -5, 5, 0], scale: [1, 1.04, 1] }}
+          className="flex h-9 w-9 items-center justify-center rounded-md bg-yellow text-navy"
+          animate={{ rotate: [0, -6, 6, 0], scale: [1, 1.05, 1] }}
           transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
         >
-          <Trophy aria-hidden size={25} />
+          <Trophy aria-hidden size={20} />
         </motion.div>
       </div>
 
-      <div className="mt-4 grid gap-3">
-        {heroInsights.map((item, index) => {
-          const Icon = item.icon
-
-          return (
-            <motion.div
-              key={item.label}
-              className="flex items-center justify-between rounded-md border border-border bg-muted px-3 py-3"
-              animate={{ y: [0, -4, 0] }}
-              transition={{
-                duration: 3.4,
-                delay: index * 0.28,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-            >
-              <div className="flex items-center gap-3">
-                <span
-                  className={`flex h-10 w-10 items-center justify-center rounded-md ${item.background} ${item.color}`}
-                >
-                  <Icon aria-hidden size={20} />
-                </span>
-                <span className="text-sm font-bold text-foreground">
-                  {item.label}
-                </span>
-              </div>
-              <span className="rounded bg-surface px-2 py-1 text-xs font-extrabold text-navy">
-                {item.value}
-              </span>
-            </motion.div>
-          )
-        })}
-      </div>
-
-      <div className="mt-5 border-t border-border pt-4">
-        <div className="flex h-16 items-end gap-2">
-          {[28, 44, 32, 58, 40, 52, 36].map((height, index) => (
+      <div className="p-4">
+        <div className="rounded-lg border border-border bg-muted/70 p-4">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+            Predicted overall rank
+          </p>
+          <div className="mt-1 flex items-end gap-2">
             <motion.span
-              key={`${height}-${index}`}
-              className="flex-1 rounded-t bg-navy"
-              initial={{ height: 10 }}
-              animate={{ height: [height * 0.55, height, height * 0.75] }}
-              transition={{
-                duration: 2.8,
-                delay: index * 0.14,
-                repeat: Infinity,
-                ease: 'easeInOut',
-              }}
-            />
+              className="text-4xl font-extrabold leading-none text-navy"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+            >
+              #1,248
+            </motion.span>
+            <span className="mb-1 inline-flex items-center gap-1 rounded bg-green/12 px-1.5 py-0.5 text-xs font-bold text-green">
+              <TrendingUp aria-hidden size={13} />
+              Top 8%
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {[
+            ['Score', '92.6'],
+            ['Percentile', '96.4'],
+            ['Category', '#214'],
+          ].map(([label, value]) => (
+            <div
+              key={label}
+              className="rounded-md border border-border bg-surface px-2 py-2 text-center"
+            >
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                {label}
+              </p>
+              <p className="mt-0.5 text-sm font-extrabold text-foreground">
+                {value}
+              </p>
+            </div>
           ))}
         </div>
-        <div className="mt-3 flex items-center justify-between text-xs font-bold text-muted-foreground">
-          <span>Score spread</span>
-          <span className="text-green">Auto updated</span>
+
+        <div className="mt-4 border-t border-border pt-3">
+          <div className="flex h-14 items-end gap-1.5" aria-hidden>
+            {[28, 44, 32, 58, 40, 52, 36, 48].map((height, index) => (
+              <motion.span
+                key={`${height}-${index}`}
+                className={`flex-1 rounded-t ${index === 3 ? 'bg-yellow' : 'bg-navy/85'}`}
+                initial={{ height: 10 }}
+                animate={{ height: [height * 0.55, height, height * 0.75] }}
+                transition={{
+                  duration: 2.8,
+                  delay: index * 0.12,
+                  repeat: Infinity,
+                  ease: 'easeInOut',
+                }}
+              />
+            ))}
+          </div>
+          <div className="mt-2 flex items-center justify-between text-[11px] font-bold text-muted-foreground">
+            <span>Score distribution</span>
+            <span className="text-green">Your band</span>
+          </div>
         </div>
       </div>
     </motion.div>
@@ -193,6 +189,12 @@ function CandidateApp() {
             ))}
           </nav>
           <div className="flex items-center gap-2">
+            <a
+              href="#calculator"
+              className="hidden h-10 items-center justify-center rounded-md bg-navy px-4 text-sm font-bold text-white transition hover:bg-navy/90 md:inline-flex"
+            >
+              Check Your Rank
+            </a>
             <Button
               type="button"
               variant="ghost"
@@ -209,49 +211,68 @@ function CandidateApp() {
 
       <main id="top">
         <section className="relative isolate overflow-hidden bg-background">
-          <div className="mx-auto grid min-h-[76svh] max-w-6xl content-center px-4 py-12 sm:px-6 lg:px-8">
+          <div className="absolute inset-0 hero-grid" aria-hidden />
+          <div className="relative mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
             <motion.div
               className="mx-auto w-full max-w-6xl"
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, ease: 'easeOut' }}
             >
-              <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_350px]">
                 <div>
-                  <div className="mb-5 inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-semibold text-navy shadow-[0_16px_40px_rgba(17,24,39,0.08)]">
-                    <DatabaseZap aria-hidden size={16} />
+                  <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-semibold text-navy shadow-[0_12px_30px_rgba(17,24,39,0.08)]">
+                    <DatabaseZap aria-hidden size={15} className="text-yellow" />
                     Result-season ready rank intelligence
                   </div>
-                  <h1 className="max-w-3xl text-4xl font-extrabold leading-tight text-foreground sm:text-5xl lg:text-6xl">
-                    Muppadai Rank Predictor
+                  <h1 className="max-w-3xl text-4xl font-extrabold leading-[1.08] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+                    Predict Your Rank{' '}
+                    <span className="text-navy">Before Official Results</span>
                   </h1>
-                  <p className="mt-4 max-w-3xl text-lg font-medium text-muted-foreground sm:text-xl">
-                    Predict Your Rank Before Official Results
+                  <p className="mt-4 max-w-xl text-base font-medium leading-7 text-muted-foreground sm:text-lg">
+                    Paste your Digialm response sheet and get an accurate score,
+                    percentile, and predicted rank in seconds — built for Indian
+                    competitive exam aspirants.
                   </p>
+                  <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2.5">
+                    {heroTrustItems.map((item) => {
+                      const Icon = item.icon
+
+                      return (
+                        <li
+                          key={item.label}
+                          className="flex items-center gap-2 text-sm font-semibold text-foreground"
+                        >
+                          <Icon className="text-green" aria-hidden size={17} />
+                          {item.label}
+                        </li>
+                      )
+                    })}
+                  </ul>
                 </div>
                 <HeroInsightVisual />
               </div>
-              <div className="mt-8 max-w-5xl">
+
+              <div id="calculator" className="mt-8 scroll-mt-24 max-w-5xl">
                 <PredictionForm
                   isSubmitting={predictionMutation.isPending}
                   errorMessage={formError}
                   onSubmit={handleSubmit}
                 />
               </div>
-              <div className="mt-6 grid gap-3 text-sm font-medium text-muted-foreground sm:grid-cols-3">
-                {['Secure URL parsing', 'Redis-backed ranking', 'Configurable cutoffs'].map(
-                  (item) => (
-                    <span key={item} className="flex items-center gap-2">
-                      <CheckCircle2
-                        className="text-green"
-                        aria-hidden
-                        size={17}
-                      />
-                      {item}
-                    </span>
-                  ),
-                )}
-              </div>
+
+              <dl className="mt-8 grid grid-cols-3 gap-3 rounded-xl border border-border bg-surface/80 p-4 backdrop-blur sm:gap-4 sm:p-5">
+                {heroStats.map(([value, label]) => (
+                  <div key={label} className="text-center">
+                    <dt className="text-2xl font-extrabold text-navy sm:text-3xl">
+                      {value}
+                    </dt>
+                    <dd className="mt-1 text-[11px] font-semibold leading-tight text-muted-foreground sm:text-sm">
+                      {label}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
             </motion.div>
           </div>
         </section>
@@ -283,12 +304,23 @@ function CandidateApp() {
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {features.map((feature) => {
+              {features.map((feature, index) => {
                 const Icon = feature.icon
+                const palette = [
+                  'bg-navy/10 text-navy',
+                  'bg-green/10 text-green',
+                  'bg-blue/10 text-blue',
+                  'bg-red/10 text-red',
+                ][index % 4]
 
                 return (
-                  <Card key={feature.title} className="p-5">
-                    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-md bg-green/10 text-green">
+                  <Card
+                    key={feature.title}
+                    className="p-5 transition duration-200 hover:-translate-y-1 hover:border-navy/40 hover:shadow-[0_18px_40px_rgba(17,24,39,0.10)]"
+                  >
+                    <div
+                      className={`mb-4 flex h-11 w-11 items-center justify-center rounded-md ${palette}`}
+                    >
                       <Icon aria-hidden size={21} />
                     </div>
                     <h3 className="text-base font-bold text-foreground">
@@ -386,13 +418,18 @@ function CandidateApp() {
                 Rank predictor questions candidates search for
               </h2>
             </div>
-            <div className="divide-y divide-border rounded-lg border border-border bg-surface">
+            <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
               {faqs.map((faq) => (
-                <details key={faq.question} className="group p-5">
-                  <summary className="cursor-pointer list-none font-bold text-foreground">
+                <details key={faq.question} className="group">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 font-bold text-foreground transition hover:bg-muted/60">
                     {faq.question}
+                    <ChevronDown
+                      className="faq-chevron shrink-0 text-navy transition-transform duration-200"
+                      aria-hidden
+                      size={18}
+                    />
                   </summary>
-                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  <p className="px-5 pb-5 text-sm leading-6 text-muted-foreground">
                     {faq.answer}
                   </p>
                 </details>

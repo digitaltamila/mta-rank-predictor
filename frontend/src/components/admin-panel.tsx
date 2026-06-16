@@ -1,5 +1,6 @@
 import { type FormEvent, useMemo, useState } from 'react'
 import {
+  ChevronRight,
   Download,
   FileText,
   Inbox,
@@ -7,6 +8,8 @@ import {
   Lock,
   LogOut,
   RefreshCw,
+  ShieldCheck,
+  Upload,
 } from 'lucide-react'
 import {
   adminLogin,
@@ -182,59 +185,84 @@ export function AdminPanel() {
 
   if (!token) {
     return (
-      <div className="min-h-svh bg-background px-4 py-10 text-foreground">
-        <Card className="mx-auto max-w-md p-6">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-md bg-navy text-white">
-              <Lock aria-hidden size={20} />
-            </div>
-            <div>
-              <h1 className="text-2xl font-extrabold">Admin Login</h1>
-              <p className="text-sm text-muted-foreground">
-                View submissions and feedback.
-              </p>
-            </div>
+      <div className="flex min-h-svh items-center justify-center bg-background px-4 py-10 text-foreground">
+        <div className="w-full max-w-md">
+          <div className="mb-6 flex flex-col items-center text-center">
+            <img
+              src="/muppadai-logo.png"
+              alt="Muppadai Academy"
+              className="h-14 w-14 object-contain"
+            />
+            <h1 className="mt-3 text-2xl font-extrabold">Admin Console</h1>
+            <p className="text-sm text-muted-foreground">
+              Sign in to review submissions and feedback.
+            </p>
           </div>
-          <form className="grid gap-4" onSubmit={handleLogin}>
-            <label className="grid gap-2 text-sm font-semibold">
-              Email
-              <Input
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </label>
-            <label className="grid gap-2 text-sm font-semibold">
-              Password
-              <Input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </label>
-            <Button type="submit" size="lg" disabled={isLoading}>
-              {isLoading && <Loader2 className="animate-spin" size={18} />}
-              Login
-            </Button>
-            {error && <p className="text-sm font-semibold text-red">{error}</p>}
-          </form>
-        </Card>
+          <Card className="p-6 shadow-[0_20px_50px_rgba(17,24,39,0.10)]">
+            <form className="grid gap-4" onSubmit={handleLogin}>
+              <label className="grid gap-2 text-sm font-semibold">
+                Email
+                <Input
+                  type="email"
+                  autoComplete="username"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-semibold">
+                Password
+                <Input
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </label>
+              <Button type="submit" size="lg" disabled={isLoading}>
+                {isLoading ? (
+                  <Loader2 className="animate-spin" size={18} />
+                ) : (
+                  <Lock aria-hidden size={18} />
+                )}
+                Sign in
+              </Button>
+              {error && (
+                <p className="rounded-md bg-red/10 px-3 py-2 text-sm font-semibold text-red">
+                  {error}
+                </p>
+              )}
+            </form>
+          </Card>
+          <p className="mt-4 flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <ShieldCheck aria-hidden size={14} className="text-green" />
+            Secured admin access · Muppadai Academy
+          </p>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="min-h-svh bg-background text-foreground">
-      <header className="border-b border-border bg-surface">
+      <header className="sticky top-0 z-30 border-b border-border bg-surface/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-bold uppercase text-navy">
-              Muppadai Admin
-            </p>
-            <h1 className="text-2xl font-extrabold">Submissions Dashboard</h1>
-            <p className="text-sm text-muted-foreground">
-              {user?.email ?? email}
-            </p>
+          <div className="flex items-center gap-3">
+            <img
+              src="/muppadai-logo.png"
+              alt="Muppadai Academy"
+              className="h-10 w-10 object-contain"
+            />
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-navy">
+                Muppadai Admin
+              </p>
+              <h1 className="text-xl font-extrabold leading-tight sm:text-2xl">
+                Submissions Dashboard
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                {user?.email ?? email}
+              </p>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button
@@ -256,17 +284,46 @@ export function AdminPanel() {
       <main className="mx-auto grid max-w-7xl gap-5 px-4 py-6">
         <div className="grid gap-4 md:grid-cols-3">
           {[
-            ['Total Records', stats.records],
-            ['Open Feedback', stats.feedback],
-            ['HTML Uploads', stats.uploaded],
-          ].map(([label, value]) => (
-            <Card key={label} className="p-5">
-              <p className="text-sm font-semibold text-muted-foreground">
-                {label}
-              </p>
-              <p className="mt-2 text-3xl font-extrabold">{value}</p>
-            </Card>
-          ))}
+            {
+              label: 'Total Records',
+              value: stats.records,
+              icon: FileText,
+              tone: 'bg-navy/10 text-navy',
+            },
+            {
+              label: 'Open Feedback',
+              value: stats.feedback,
+              icon: Inbox,
+              tone: 'bg-red/10 text-red',
+            },
+            {
+              label: 'HTML Uploads',
+              value: stats.uploaded,
+              icon: Upload,
+              tone: 'bg-green/10 text-green',
+            },
+          ].map((stat) => {
+            const Icon = stat.icon
+
+            return (
+              <Card
+                key={stat.label}
+                className="flex items-center justify-between p-5"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-muted-foreground">
+                    {stat.label}
+                  </p>
+                  <p className="mt-1 text-3xl font-extrabold">{stat.value}</p>
+                </div>
+                <span
+                  className={`flex h-12 w-12 items-center justify-center rounded-lg ${stat.tone}`}
+                >
+                  <Icon aria-hidden size={22} />
+                </span>
+              </Card>
+            )
+          })}
         </div>
 
         <div className="flex gap-2">
@@ -292,34 +349,53 @@ export function AdminPanel() {
 
         {activeTab === 'records' && (
           <Card className="overflow-hidden p-0">
-            <div className="grid gap-3 p-4">
+            <div className="hidden grid-cols-[1.5fr_0.9fr_0.6fr_0.7fr_0.9fr_auto] gap-3 border-b border-border bg-muted/60 px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground md:grid">
+              <span>Candidate</span>
+              <span>Category / State</span>
+              <span>Score</span>
+              <span>Rank</span>
+              <span>Submitted</span>
+              <span className="sr-only">Open</span>
+            </div>
+            <div className="divide-y divide-border">
               {records.map((record) => (
                 <button
                   key={record.id}
                   type="button"
-                  className="grid gap-3 rounded-md border border-border bg-surface p-4 text-left transition hover:border-navy hover:bg-muted md:grid-cols-[1.4fr_0.8fr_0.6fr_0.6fr_auto]"
+                  className="grid w-full grid-cols-2 items-center gap-2 px-4 py-3.5 text-left transition hover:bg-muted md:grid-cols-[1.5fr_0.9fr_0.6fr_0.7fr_0.9fr_auto] md:gap-3"
                   onClick={() => void openRecord(record.id)}
                 >
-                  <span>
-                    <span className="block font-bold">
+                  <span className="col-span-2 md:col-span-1">
+                    <span className="block font-bold text-foreground">
                       {record.candidateName ?? 'Candidate'}
                     </span>
                     <span className="text-sm text-muted-foreground">
                       {record.rollNumber ?? '--'} • {record.examName ?? '--'}
                     </span>
                   </span>
-                  <span className="text-sm">
+                  <span className="text-sm text-foreground">
                     {record.category ?? '--'} / {record.state ?? '--'}
                   </span>
-                  <span className="font-bold">{formatScore(record.score)}</span>
-                  <span>Rank {record.overallRank}</span>
+                  <span className="font-bold text-foreground">
+                    {formatScore(record.score)}
+                  </span>
+                  <span className="text-sm">
+                    <span className="inline-flex items-center rounded bg-navy/10 px-2 py-0.5 text-xs font-bold text-navy">
+                      Rank {record.overallRank}
+                    </span>
+                  </span>
                   <span className="text-sm text-muted-foreground">
                     {formatDate(record.createdAt)}
                   </span>
+                  <ChevronRight
+                    aria-hidden
+                    size={18}
+                    className="hidden text-muted-foreground md:block"
+                  />
                 </button>
               ))}
               {records.length === 0 && (
-                <p className="p-6 text-center text-muted-foreground">
+                <p className="p-8 text-center text-muted-foreground">
                   No submissions yet.
                 </p>
               )}
@@ -329,37 +405,60 @@ export function AdminPanel() {
 
         {activeTab === 'feedback' && (
           <Card className="grid gap-3 p-4">
-            {feedback.map((item) => (
-              <div key={item.id} className="rounded-md border border-border p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="font-bold">{item.type.replace('_', ' ')}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {item.candidateName ?? 'Unknown candidate'} •{' '}
-                      {formatDate(item.createdAt)}
-                    </p>
+            {feedback.map((item) => {
+              const statusTone =
+                item.status === 'resolved'
+                  ? 'bg-green/10 text-green'
+                  : item.status === 'reviewing'
+                    ? 'bg-blue/10 text-blue'
+                    : 'bg-red/10 text-red'
+
+              return (
+                <div
+                  key={item.id}
+                  className="rounded-lg border border-border p-4 transition hover:border-navy/30"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-bold capitalize">
+                          {item.type.replace('_', ' ')}
+                        </p>
+                        <span
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold capitalize ${statusTone}`}
+                        >
+                          {item.status}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {item.candidateName ?? 'Unknown candidate'} •{' '}
+                        {formatDate(item.createdAt)}
+                      </p>
+                    </div>
+                    <Select
+                      className="sm:w-40"
+                      value={item.status}
+                      onChange={(event) =>
+                        void updateAdminFeedbackStatus(
+                          token,
+                          item.id,
+                          event.target.value,
+                        ).then(() => loadAdminData())
+                      }
+                    >
+                      <option value="open">Open</option>
+                      <option value="reviewing">Reviewing</option>
+                      <option value="resolved">Resolved</option>
+                    </Select>
                   </div>
-                  <Select
-                    className="sm:w-40"
-                    value={item.status}
-                    onChange={(event) =>
-                      void updateAdminFeedbackStatus(
-                        token,
-                        item.id,
-                        event.target.value,
-                      ).then(() => loadAdminData())
-                    }
-                  >
-                    <option value="open">Open</option>
-                    <option value="reviewing">Reviewing</option>
-                    <option value="resolved">Resolved</option>
-                  </Select>
+                  <p className="mt-3 rounded-md bg-muted/60 p-3 text-sm leading-6">
+                    {item.message}
+                  </p>
                 </div>
-                <p className="mt-3 text-sm leading-6">{item.message}</p>
-              </div>
-            ))}
+              )
+            })}
             {feedback.length === 0 && (
-              <p className="p-6 text-center text-muted-foreground">
+              <p className="p-8 text-center text-muted-foreground">
                 No feedback yet.
               </p>
             )}
