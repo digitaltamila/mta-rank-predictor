@@ -2,6 +2,7 @@ import { useState } from 'react'
 import {
   CheckCircle2,
   Download,
+  Info,
   MessageSquare,
   Share2,
 } from 'lucide-react'
@@ -386,6 +387,16 @@ export function ResultSummary({ result }: ResultSummaryProps) {
           </div>
         ))}
       </Card>
+
+      <div className="flex items-start gap-2.5 rounded-lg border border-navy/20 bg-navy/5 px-4 py-3">
+        <Info aria-hidden size={16} className="mt-0.5 shrink-0 text-navy" />
+        <p className="text-sm leading-relaxed text-navy/80">
+          These ranks are based on{' '}
+          <span className="font-bold text-navy">{result.totalParticipants.toLocaleString('en-IN')} student{result.totalParticipants !== 1 ? 's' : ''}</span>{' '}
+          who checked their scores on Muppadai Rank Predictor. Your actual exam rank will be
+          determined by all candidates who appeared in the exam.
+        </p>
+      </div>
 
       <Card className="p-5">
         <div className="mb-4 flex items-center gap-2">

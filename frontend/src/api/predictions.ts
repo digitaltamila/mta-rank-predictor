@@ -62,6 +62,7 @@ export type PredictionSummary = {
     delta: number | null
   }
   selectionProbability: 'High Chance' | 'Medium Chance' | 'Low Chance'
+  totalParticipants: number
 }
 
 type PredictionApiResponse = PredictionSummary | { data: PredictionSummary }

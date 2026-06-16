@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\PredictionRun;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -69,6 +70,7 @@ class PredictionRunResource extends JsonResource
                 'delta' => $this->metadata['cutoff_delta'] ?? null,
             ],
             'selectionProbability' => $this->selection_probability,
+            'totalParticipants' => PredictionRun::query()->where('exam_id', $this->exam_id)->count(),
         ];
     }
 }
