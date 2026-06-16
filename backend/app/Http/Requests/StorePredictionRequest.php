@@ -26,7 +26,7 @@ class StorePredictionRequest extends FormRequest
                     $fail('Only Digialm (RRB) and cbexams (SSC) response sheet URLs are supported.');
                 }
             }],
-            'category' => ['required', 'string', 'max:64'],
+            'category' => ['nullable', 'string', 'max:64'],
             'horizontal_category' => ['nullable', 'string', 'max:64'],
             'state' => ['nullable', 'string', 'max:64'],
             'rrb_zone' => ['nullable', 'string', 'max:64'],

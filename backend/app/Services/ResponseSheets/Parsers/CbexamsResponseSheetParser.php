@@ -21,22 +21,43 @@ class CbexamsResponseSheetParser implements ResponseSheetParser
 
     public function parse(string $url, string $html): ParsedResponseSheet
     {
+        return $this->parseMultiPage($url, ['A' => $html]);
+    }
+
+    /**
+     * Parse all 4 parts of a cbexams SSC response sheet.
+     *
+     * @param  array<string, string>  $pages  Map of part key (A/B/C/D) to HTML string
+     */
+    public function parseMultiPage(string $url, array $pages): ParsedResponseSheet
+    {
         if (! $this->supports($url)) {
             throw new ResponseSheetParserException('The URL is not a cbexams response sheet.');
         }
 
-        $doc = new DOMDocument();
-        $previous = libxml_use_internal_errors(true);
-        $doc->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_NONET);
-        libxml_clear_errors();
-        libxml_use_internal_errors($previous);
+        // Metadata is consistent across all parts — extract from first page
+        $firstHtml = reset($pages);
+        $firstXpath = new DOMXPath($this->loadHtml($firstHtml));
+        $metadata = $this->extractMetadata($firstXpath);
 
-        $xpath = new DOMXPath($doc);
+        $allQuestions = [];
 
-        $metadata = $this->extractMetadata($xpath);
-        $questions = $this->extractQuestions($xpath, $metadata['exam_name'] ?? 'SSC GD');
+        foreach ($pages as $html) {
+            $xpath = new DOMXPath($this->loadHtml($html));
 
-        if ($questions === []) {
+            // Each page has its own section header in <span id="lblsubject">
+            $sectionName = $this->extractPageSectionName($xpath)
+                ?? $metadata['exam_name']
+                ?? 'SSC GD';
+
+            foreach ($this->extractQuestions($xpath, $sectionName) as $qId => $question) {
+                $allQuestions[$qId] = $question;
+            }
+        }
+
+        ksort($allQuestions, SORT_NUMERIC);
+
+        if ($allQuestions === []) {
             throw new ResponseSheetParserException(
                 'No questions were found in the cbexams response sheet. Please check the URL and try again.',
             );
@@ -47,19 +68,53 @@ class CbexamsResponseSheetParser implements ResponseSheetParser
             candidateName: $metadata['candidate_name'] ?? null,
             rollNumber: $metadata['roll_number'] ?? null,
             examName: $metadata['exam_name'] ?? 'SSC GD',
-            questions: array_values($questions),
+            questions: array_values($allQuestions),
             rawPayload: [
                 'metadata' => $metadata,
-                'question_count' => count($questions),
+                'question_count' => count($allQuestions),
+                'pages_fetched' => array_keys($pages),
             ],
         );
+    }
+
+    private function loadHtml(string $html): DOMDocument
+    {
+        $doc = new DOMDocument();
+        $previous = libxml_use_internal_errors(true);
+        $doc->loadHTML($html, LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        return $doc;
+    }
+
+    /**
+     * Extract section name from <span id="lblsubject">.
+     * Strips the "PART-X (" prefix and ")" suffix.
+     * "PART-A (General Intelligence and Reasoning)" → "General Intelligence and Reasoning"
+     */
+    private function extractPageSectionName(DOMXPath $xpath): ?string
+    {
+        $node = $xpath->query('//*[@id="lblsubject"]')->item(0);
+        if ($node === null) {
+            return null;
+        }
+
+        $raw = $this->normalizeText($node->textContent);
+
+        // "PART-A (General Intelligence and Reasoning)" → "General Intelligence and Reasoning"
+        if (preg_match('/PART-[A-D]\s*\((.+)\)\s*$/i', $raw, $m)) {
+            return trim($m[1]);
+        }
+
+        return $raw !== '' ? $raw : null;
     }
 
     private function extractMetadata(DOMXPath $xpath): array
     {
         $metadata = [];
 
-        // Candidate header table: <td class="bld"> key : value pairs
+        // Candidate header table: key : value pairs in <tr><td> rows
         foreach ($xpath->query('//tr') as $row) {
             $cells = [];
             foreach ($xpath->query('./td', $row) as $cell) {
@@ -90,7 +145,7 @@ class CbexamsResponseSheetParser implements ResponseSheetParser
             }
         }
 
-        // Exam name from the disabled dropdown (Exam Level field)
+        // Exam name from the disabled test-level dropdown (e.g. "Constable (GD)-2026")
         $selectedOption = $xpath->query('//select[@id="ddltest"]/option[@selected]')->item(0);
         if ($selectedOption !== null) {
             $examName = $this->normalizeText($selectedOption->textContent);
@@ -109,7 +164,6 @@ class CbexamsResponseSheetParser implements ResponseSheetParser
     {
         $questions = [];
 
-        // Each question lives in a <table>. Find the td that shows "Q.No: N"
         $qNoCells = $xpath->query('//td[contains(., "Q.No:")]');
 
         foreach ($qNoCells as $qNoCell) {
@@ -132,7 +186,6 @@ class CbexamsResponseSheetParser implements ResponseSheetParser
             }
 
             $optionColors = $this->extractOptionColors($xpath, $table, $qNoCell);
-
             [$selectedAnswer, $correctAnswer] = $this->resolveAnswers($optionColors);
 
             $questions[(string) $qNum] = new ParsedQuestion(
@@ -148,20 +201,18 @@ class CbexamsResponseSheetParser implements ResponseSheetParser
             );
         }
 
-        ksort($questions, SORT_NUMERIC);
-
         return $questions;
     }
 
     /**
-     * Collect the bgcolor values of option rows that come after the question row.
+     * Collect bgcolor values of option rows that follow the question row.
      *
      * Each option row has a narrow <td width="2%"> (without valign="top") whose
-     * bgcolor attribute encodes the answer status:
+     * bgcolor encodes the answer status:
      *   green  → candidate selected this and it is correct
      *   red    → candidate selected this but it is wrong
-     *   yellow → candidate did NOT select this, but it is the correct answer
-     *   (empty)→ unselected, incorrect
+     *   yellow → candidate did NOT select this but it is the correct answer
+     *   (empty)→ unselected and incorrect
      *
      * @return list<string>
      */
@@ -176,7 +227,6 @@ class CbexamsResponseSheetParser implements ResponseSheetParser
                 continue;
             }
 
-            // Detect the question row (contains the Q.No cell)
             if (! $pastQuestion) {
                 $found = false;
                 foreach ($xpath->query('.//td', $row) as $td) {
@@ -191,11 +241,10 @@ class CbexamsResponseSheetParser implements ResponseSheetParser
                 continue;
             }
 
-            // Option rows: first <td> has width="2%" and no valign
             $colorCell = $xpath->query('./td[@width="2%" and not(@valign)]', $row)->item(0);
 
             if (! $colorCell instanceof DOMElement) {
-                break; // end of options (hit summary / challenge row)
+                break;
             }
 
             $colors[] = strtolower(trim($colorCell->getAttribute('bgcolor')));
@@ -205,7 +254,7 @@ class CbexamsResponseSheetParser implements ResponseSheetParser
     }
 
     /**
-     * @param  list<string>  $colors  One entry per option (position 1-based)
+     * @param  list<string>  $colors
      * @return array{0: string|null, 1: string|null}  [selectedAnswer, correctAnswer]
      */
     private function resolveAnswers(array $colors): array
@@ -217,14 +266,11 @@ class CbexamsResponseSheetParser implements ResponseSheetParser
             $optionNum = (string) ($pos + 1);
 
             if ($color === 'green') {
-                // Candidate selected this and it is correct
                 $selected = $optionNum;
                 $correct = $optionNum;
             } elseif ($color === 'red') {
-                // Candidate selected this but it is wrong
                 $selected = $optionNum;
             } elseif ($color === 'yellow') {
-                // The correct answer the candidate did not choose
                 $correct = $optionNum;
             }
         }

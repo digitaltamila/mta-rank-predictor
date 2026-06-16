@@ -2,7 +2,7 @@ import { apiRequest } from './http'
 
 export type PredictionRequest = {
   responseSheetUrl: string
-  category: string
+  category?: string
   gender?: string
   state?: string
   uploadedHtml?: string

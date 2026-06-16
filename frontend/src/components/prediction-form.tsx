@@ -79,7 +79,7 @@ const predictionSchema = z.object({
           'Enter a Digialm URL (RRB) or cbexams URL (SSC) from your response sheet.',
       },
     ),
-  category: z.string().min(1, 'Choose your category.'),
+  category: z.string().optional(),
   gender: z.string().optional(),
   state: z.string().optional(),
   uploadedHtml: z.string().optional(),
@@ -257,7 +257,7 @@ export function PredictionForm({
             <div className="grid gap-4 md:grid-cols-3">
               <label className="grid gap-2" htmlFor="category">
                 <span className="text-sm font-semibold text-foreground">
-                  Category <span className="text-red">*</span>
+                  Category
                 </span>
                 <Select
                   id="category"
@@ -357,19 +357,13 @@ export function PredictionForm({
               </div>
             )}
           </div>
-          {(fieldError ||
-            errors.category?.message ||
-            consentError ||
-            errorMessage) && (
+          {(fieldError || consentError || errorMessage) && (
             <p
               id="prediction-form-message"
               className="px-2 pt-2 text-left text-sm font-medium text-red"
               role="alert"
             >
-              {fieldError ??
-                errors.category?.message ??
-                consentError ??
-                errorMessage}
+              {fieldError ?? consentError ?? errorMessage}
             </p>
           )}
       </>

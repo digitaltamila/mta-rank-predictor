@@ -139,9 +139,12 @@ export function ResultSummary({ result }: ResultSummaryProps) {
     ctx.fillText('Muppadai Rank Predictor', 600, 76)
     ctx.fillStyle = '#747ca6'
     ctx.font = '700 20px Inter, Arial, sans-serif'
-    ctx.fillText('RRB NTPC Graduate Level Score Card', 600, 108)
-    ctx.font = '700 18px Inter, Arial, sans-serif'
-    ctx.fillText('CEN - 06/2025 - Recruitment of NTPC Graduate Level', 600, 138)
+    const canvasTitle = result.examName ? `${result.examName} Score Card` : 'Score Card'
+    ctx.fillText(canvasTitle, 600, 108)
+    if (details.subject && details.subject !== result.examName) {
+      ctx.font = '700 18px Inter, Arial, sans-serif'
+      ctx.fillText(details.subject, 600, 138)
+    }
 
     const logo = new Image()
     logo.src = '/muppadai-logo.png'
@@ -291,11 +294,13 @@ export function ResultSummary({ result }: ResultSummaryProps) {
               Muppadai Rank Predictor
             </h2>
             <p className="mt-1 text-sm font-bold text-text3 sm:text-lg">
-              RRB NTPC Graduate Level Score Card
+              {result.examName ? `${result.examName} Score Card` : 'Score Card'}
             </p>
-            <p className="mt-1 text-xs font-semibold text-text3 sm:text-base">
-              CEN - 06/2025 - Recruitment of NTPC Graduate Level
-            </p>
+            {details.subject && details.subject !== result.examName && (
+              <p className="mt-1 text-xs font-semibold text-text3 sm:text-base">
+                {details.subject}
+              </p>
+            )}
           </div>
           <img
             src="/muppadai-logo.png"
