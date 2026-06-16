@@ -108,7 +108,7 @@ class ExamCatalogSeeder extends Seeder
             ],
             [
                 'correct_marks' => 2,
-                'negative_marks' => 0.5,
+                'negative_marks' => 0.25,
                 'unanswered_marks' => 0,
                 'rounding_mode' => 'standard',
                 'is_active' => true,

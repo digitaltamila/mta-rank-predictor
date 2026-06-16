@@ -53,8 +53,8 @@ const stateOptions = [
 ] as const
 
 const examTabs = [
+  ['ssc', 'SSC GD'],
   ['rrb', 'RRB'],
-  ['ssc', 'SSC'],
 ] as const
 
 const predictionSchema = z.object({
@@ -84,9 +84,6 @@ const predictionSchema = z.object({
   state: z.string().optional(),
   uploadedHtml: z.string().optional(),
   examTab: z.enum(['ssc', 'rrb']),
-  consent: z.boolean().refine((value) => value, {
-    message: 'Please agree before submitting.',
-  }),
 })
 
 export type PredictionFormValues = z.infer<typeof predictionSchema>
@@ -102,7 +99,7 @@ export function PredictionForm({
   errorMessage,
   onSubmit,
 }: PredictionFormProps) {
-  const [activeTab, setActiveTab] = useState<'ssc' | 'rrb'>('rrb')
+  const [activeTab, setActiveTab] = useState<'ssc' | 'rrb'>('ssc')
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
 
   const {
@@ -118,13 +115,11 @@ export function PredictionForm({
       gender: '',
       state: 'Tamil Nadu',
       uploadedHtml: '',
-      examTab: 'rrb',
-      consent: false,
+      examTab: 'ssc',
     },
   })
 
   const fieldError = errors.responseSheetUrl?.message
-  const consentError = errors.consent?.message
 
   const submitForm = (values: PredictionFormValues) => {
     onSubmit(values)
@@ -300,18 +295,6 @@ export function PredictionForm({
               </label>
             </div>
 
-            <label className="flex items-start gap-3 text-sm leading-6 text-muted-foreground">
-              <input
-                type="checkbox"
-                className="mt-1 h-4 w-4 rounded border-border text-navy focus:ring-navy"
-                {...register('consent')}
-              />
-              <span>
-                I agree that my exam data can be used to generate my report and
-                aggregated rank insights.
-              </span>
-            </label>
-
             <Button
               type="submit"
               size="lg"
@@ -357,13 +340,13 @@ export function PredictionForm({
               </div>
             )}
           </div>
-          {(fieldError || consentError || errorMessage) && (
+          {(fieldError || errorMessage) && (
             <p
               id="prediction-form-message"
               className="px-2 pt-2 text-left text-sm font-medium text-red"
               role="alert"
             >
-              {fieldError ?? consentError ?? errorMessage}
+              {fieldError ?? errorMessage}
             </p>
           )}
       </>

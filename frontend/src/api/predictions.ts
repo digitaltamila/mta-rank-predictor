@@ -7,7 +7,6 @@ export type PredictionRequest = {
   state?: string
   uploadedHtml?: string
   examTab?: 'ssc' | 'rrb'
-  consent: boolean
 }
 
 export type PredictionSectionSummary = {
@@ -79,7 +78,6 @@ export async function createPrediction(
       state: input.state,
       uploaded_html: input.uploadedHtml,
       exam_tab: input.examTab,
-      consent: input.consent,
     }),
   })
 

@@ -8,6 +8,7 @@ import {
   Lock,
   LogOut,
   RefreshCw,
+  Settings,
   ShieldCheck,
   Upload,
 } from 'lucide-react'
@@ -17,10 +18,13 @@ import {
   fetchAdminFeedback,
   fetchAdminPrediction,
   fetchAdminPredictions,
+  fetchAdminScoringRules,
   updateAdminFeedbackStatus,
+  updateAdminScoringRule,
   type AdminFeedback,
   type AdminPredictionDetail,
   type AdminPredictionSummary,
+  type AdminScoringRule,
   type AdminUser,
 } from '../api/admin'
 import { ApiError } from '../api/http'
@@ -45,9 +49,17 @@ export function AdminPanel() {
   const [feedback, setFeedback] = useState<AdminFeedback[]>([])
   const [selectedRecord, setSelectedRecord] =
     useState<AdminPredictionDetail | null>(null)
-  const [activeTab, setActiveTab] = useState<'records' | 'feedback'>('records')
+  const [activeTab, setActiveTab] = useState<'records' | 'feedback' | 'marks'>('records')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [scoringRules, setScoringRules] = useState<AdminScoringRule[]>([])
+  const [editingRule, setEditingRule] = useState<{
+    id: number
+    correctMarks: string
+    negativeMarks: string
+    unansweredMarks: string
+  } | null>(null)
+  const [marksSaveStatus, setMarksSaveStatus] = useState<Record<number, string>>({})
 
   const stats = useMemo(
     () => ({
@@ -66,12 +78,14 @@ export function AdminPanel() {
     setIsLoading(true)
     setError(null)
     try {
-      const [recordResponse, feedbackResponse] = await Promise.all([
+      const [recordResponse, feedbackResponse, rulesResponse] = await Promise.all([
         fetchAdminPredictions(authToken),
         fetchAdminFeedback(authToken),
+        fetchAdminScoringRules(authToken),
       ])
       setRecords(recordResponse.data)
       setFeedback(feedbackResponse.data)
+      setScoringRules(rulesResponse.data)
     } catch (exception) {
       setError(
         exception instanceof ApiError
@@ -80,6 +94,27 @@ export function AdminPanel() {
       )
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const saveMarks = async (ruleId: number) => {
+    if (!editingRule || editingRule.id !== ruleId) return
+    try {
+      await updateAdminScoringRule(
+        token,
+        ruleId,
+        Number.parseFloat(editingRule.correctMarks),
+        Number.parseFloat(editingRule.negativeMarks),
+        Number.parseFloat(editingRule.unansweredMarks),
+      )
+      setMarksSaveStatus((prev) => ({ ...prev, [ruleId]: 'Saved!' }))
+      setEditingRule(null)
+      await loadAdminData()
+    } catch (exception) {
+      setMarksSaveStatus((prev) => ({
+        ...prev,
+        [ruleId]: exception instanceof ApiError ? exception.message : 'Save failed.',
+      }))
     }
   }
 
@@ -343,6 +378,14 @@ export function AdminPanel() {
             <Inbox aria-hidden size={17} />
             Feedback
           </Button>
+          <Button
+            type="button"
+            variant={activeTab === 'marks' ? 'primary' : 'secondary'}
+            onClick={() => setActiveTab('marks')}
+          >
+            <Settings aria-hidden size={17} />
+            Marks
+          </Button>
         </div>
 
         {error && <p className="text-sm font-semibold text-red">{error}</p>}
@@ -462,6 +505,108 @@ export function AdminPanel() {
                 No feedback yet.
               </p>
             )}
+          </Card>
+        )}
+
+        {activeTab === 'marks' && (
+          <Card className="p-5">
+            <div className="mb-5 border-b border-border pb-4">
+              <h2 className="text-lg font-extrabold text-foreground">Marking Scheme</h2>
+              <p className="text-sm text-muted-foreground">
+                Set correct / wrong / unanswered marks per exam. Changes apply immediately to new submissions.
+              </p>
+            </div>
+            <div className="grid gap-6">
+              {scoringRules.map((rule) => {
+                const sr = rule.scoringRule
+                if (!sr) return null
+                const isEditing = editingRule?.id === sr.id
+                return (
+                  <div key={rule.examId} className="rounded-lg border border-border p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h3 className="font-extrabold text-foreground">{rule.examName}</h3>
+                      {!isEditing && (
+                        <button
+                          type="button"
+                          className="text-sm font-bold text-navy underline"
+                          onClick={() =>
+                            setEditingRule({
+                              id: sr.id,
+                              correctMarks: String(sr.correctMarks),
+                              negativeMarks: String(sr.negativeMarks),
+                              unansweredMarks: String(sr.unansweredMarks),
+                            })
+                          }
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </div>
+                    {isEditing ? (
+                      <div className="grid gap-3">
+                        <div className="grid grid-cols-3 gap-3">
+                          {[
+                            ['Correct (+)', 'correctMarks'],
+                            ['Wrong (−)', 'negativeMarks'],
+                            ['Unanswered', 'unansweredMarks'],
+                          ].map(([label, field]) => (
+                            <label key={field} className="grid gap-1 text-sm font-semibold">
+                              {label}
+                              <input
+                                type="number"
+                                step="0.01"
+                                className="rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                                value={editingRule[field as keyof typeof editingRule]}
+                                onChange={(e) =>
+                                  setEditingRule((prev) =>
+                                    prev ? { ...prev, [field]: e.target.value } : prev,
+                                  )
+                                }
+                              />
+                            </label>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            className="inline-flex h-9 items-center justify-center rounded-md bg-navy px-4 text-sm font-bold text-white transition hover:bg-navy/90"
+                            onClick={() => void saveMarks(sr.id)}
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex h-9 items-center justify-center rounded-md border border-border bg-surface px-4 text-sm font-bold text-foreground transition hover:bg-muted"
+                            onClick={() => setEditingRule(null)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        {marksSaveStatus[sr.id] && (
+                          <p className="text-sm font-medium text-green">{marksSaveStatus[sr.id]}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          ['Correct', `+${sr.correctMarks}`],
+                          ['Wrong', `−${sr.negativeMarks}`],
+                          ['Unanswered', `${sr.unansweredMarks}`],
+                        ].map(([label, val]) => (
+                          <div key={label} className="rounded-md bg-muted p-3 text-center">
+                            <p className="text-xs font-bold uppercase text-muted-foreground">{label}</p>
+                            <p className="mt-1 text-lg font-extrabold text-foreground">{val}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              {scoringRules.length === 0 && (
+                <p className="text-center text-sm text-muted-foreground">No active exams found.</p>
+              )}
+            </div>
           </Card>
         )}
 

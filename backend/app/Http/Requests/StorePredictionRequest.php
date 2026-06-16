@@ -37,7 +37,6 @@ class StorePredictionRequest extends FormRequest
             'exam_tab' => ['nullable', 'string', 'max:32'],
             'answer_key_password' => ['nullable', 'string', 'max:128'],
             'uploaded_html' => ['nullable', 'string'],
-            'consent' => ['accepted'],
         ];
     }
 }

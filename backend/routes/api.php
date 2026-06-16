@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AdminAuthController;
 use App\Http\Controllers\Api\V1\AdminPredictionController;
+use App\Http\Controllers\Api\V1\AdminScoringRuleController;
 use App\Http\Controllers\Api\V1\FeedbackController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
 use App\Http\Controllers\Api\V1\PredictionController;
@@ -31,4 +32,6 @@ Route::prefix('v1')->group(function () {
     Route::get('/admin/predictions/{predictionRun}', [AdminPredictionController::class, 'show']);
     Route::get('/admin/feedback', [FeedbackController::class, 'index']);
     Route::patch('/admin/feedback/{feedback}', [FeedbackController::class, 'update']);
+    Route::get('/admin/scoring-rules', [AdminScoringRuleController::class, 'index']);
+    Route::patch('/admin/scoring-rules/{scoringRule}', [AdminScoringRuleController::class, 'update']);
 });

@@ -134,3 +134,38 @@ export const adminLogout = (token: string) =>
   adminRequest<{ status: string }>('/v1/admin/logout', token, {
     method: 'POST',
   })
+
+export type AdminScoringRule = {
+  examId: number
+  examName: string
+  slug: string
+  scoringRule: {
+    id: number
+    correctMarks: number
+    negativeMarks: number
+    unansweredMarks: number
+  } | null
+}
+
+export const fetchAdminScoringRules = (token: string) =>
+  adminRequest<{ data: AdminScoringRule[] }>('/v1/admin/scoring-rules', token)
+
+export const updateAdminScoringRule = (
+  token: string,
+  id: number,
+  correctMarks: number,
+  negativeMarks: number,
+  unansweredMarks: number,
+) =>
+  adminRequest<{ data: AdminScoringRule['scoringRule'] }>(
+    `/v1/admin/scoring-rules/${id}`,
+    token,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({
+        correct_marks: correctMarks,
+        negative_marks: negativeMarks,
+        unanswered_marks: unansweredMarks,
+      }),
+    },
+  )
