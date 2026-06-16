@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\ResponseSheets\Parsers\CbexamsResponseSheetParser;
 use App\Services\ResponseSheets\Parsers\DigialmResponseSheetParser;
 use App\Services\ResponseSheets\ResponseSheetParserManager;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -19,6 +20,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ResponseSheetParserManager::class, function () {
             return new ResponseSheetParserManager([
                 new DigialmResponseSheetParser(),
+                new CbexamsResponseSheetParser(),
             ]);
         });
     }

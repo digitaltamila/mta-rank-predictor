@@ -19,8 +19,11 @@ class StorePredictionRequest extends FormRequest
 
                 $host = is_string($host) ? strtolower($host) : null;
 
-                if ($host === null || ($host !== 'digialm.com' && ! str_ends_with($host, '.digialm.com'))) {
-                    $fail('Only Digialm response sheet URLs are supported in this module.');
+                $isDigialm = $host === 'digialm.com' || str_ends_with($host, '.digialm.com');
+                $isCbexams = $host === 'cbexams.com' || str_ends_with($host, '.cbexams.com');
+
+                if ($host === null || (! $isDigialm && ! $isCbexams)) {
+                    $fail('Only Digialm (RRB) and cbexams (SSC) response sheet URLs are supported.');
                 }
             }],
             'category' => ['required', 'string', 'max:64'],

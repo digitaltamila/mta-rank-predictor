@@ -6,7 +6,7 @@ export type PredictionRequest = {
   gender?: string
   state?: string
   uploadedHtml?: string
-  examTab?: 'ssc' | 'rrb' | 'others'
+  examTab?: 'ssc' | 'rrb'
   consent: boolean
 }
 

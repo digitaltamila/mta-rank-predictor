@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { type ChangeEvent, useState } from 'react'
-import { BellRing, Clock3, FileUp, Loader2, WandSparkles, X } from 'lucide-react'
+import { FileUp, Loader2, WandSparkles, X } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from './ui/button'
@@ -55,7 +55,6 @@ const stateOptions = [
 const examTabs = [
   ['rrb', 'RRB'],
   ['ssc', 'SSC'],
-  ['others', 'Others'],
 ] as const
 
 const predictionSchema = z.object({
@@ -67,22 +66,24 @@ const predictionSchema = z.object({
       (url) => {
         try {
           const host = new URL(url).hostname.toLowerCase()
+          const isDigialm = host === 'digialm.com' || host.endsWith('.digialm.com')
+          const isCbexams = host === 'cbexams.com' || host.endsWith('.cbexams.com')
 
-          return host === 'digialm.com' || host.endsWith('.digialm.com')
+          return isDigialm || isCbexams
         } catch {
           return false
         }
       },
       {
         message:
-          'Only Digialm response sheet URLs are supported in this module.',
+          'Enter a Digialm URL (RRB) or cbexams URL (SSC) from your response sheet.',
       },
     ),
   category: z.string().min(1, 'Choose your category.'),
   gender: z.string().optional(),
   state: z.string().optional(),
   uploadedHtml: z.string().optional(),
-  examTab: z.enum(['ssc', 'rrb', 'others']),
+  examTab: z.enum(['ssc', 'rrb']),
   consent: z.boolean().refine((value) => value, {
     message: 'Please agree before submitting.',
   }),
@@ -101,10 +102,7 @@ export function PredictionForm({
   errorMessage,
   onSubmit,
 }: PredictionFormProps) {
-  const [activeTab, setActiveTab] = useState<'ssc' | 'rrb' | 'others'>('rrb')
-  const [comingSoonTab, setComingSoonTab] = useState<'ssc' | 'others' | null>(
-    null,
-  )
+  const [activeTab, setActiveTab] = useState<'ssc' | 'rrb'>('rrb')
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
 
   const {
@@ -132,16 +130,9 @@ export function PredictionForm({
     onSubmit(values)
   }
 
-  const switchTab = (tab: 'ssc' | 'rrb' | 'others') => {
+  const switchTab = (tab: 'ssc' | 'rrb') => {
     setActiveTab(tab)
     setValue('examTab', tab)
-
-    if (tab !== 'rrb') {
-      setComingSoonTab(tab)
-      return
-    }
-
-    setComingSoonTab(null)
   }
 
   const handleHtmlUpload = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -182,7 +173,7 @@ export function PredictionForm({
           </div>
         </div>
         <div
-          className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted p-1"
+          className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1"
           role="tablist"
           aria-label="Exam type"
         >
@@ -205,33 +196,7 @@ export function PredictionForm({
         </div>
       </div>
 
-      {comingSoonTab ? (
-        <div className="flex min-h-[320px] items-center justify-center rounded-lg border border-dashed border-navy/25 bg-cream px-4 py-12 text-center">
-          <div className="max-w-md">
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-navy/10 text-navy ring-8 ring-navy/[0.04]">
-              <Clock3 className="animate-pulse" aria-hidden size={30} />
-            </div>
-            <p className="text-xl font-extrabold text-foreground sm:text-2xl">
-              {comingSoonTab === 'ssc'
-                ? 'SSC calculator is coming soon'
-                : 'More exam calculators are coming soon'}
-            </p>
-            <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-muted-foreground">
-              We are preparing parser rules, cutoff logic, and rank pools for
-              this section. The RRB calculator is fully live right now.
-            </p>
-            <button
-              type="button"
-              onClick={() => switchTab('rrb')}
-              className="mx-auto mt-5 inline-flex items-center gap-2 rounded-md bg-navy px-4 py-2.5 text-sm font-bold text-white transition hover:bg-navy/90"
-            >
-              <BellRing aria-hidden size={16} />
-              Use the RRB calculator
-            </button>
-          </div>
-        </div>
-      ) : (
-        <>
+      <>
           <div className="grid gap-4">
             <label className="grid gap-2" htmlFor="response-sheet-url">
               <span className="text-sm font-semibold text-foreground">
@@ -242,7 +207,7 @@ export function PredictionForm({
                 type="url"
                 inputMode="url"
                 autoComplete="url"
-                placeholder="https://rrb.digialm.com/....html"
+                placeholder={activeTab === 'ssc' ? 'https://sscexams.cbexams.com/...aspx?enckey=...' : 'https://rrb.digialm.com/....html'}
                 aria-invalid={Boolean(fieldError)}
                 aria-describedby={
                   fieldError || errorMessage
@@ -407,8 +372,7 @@ export function PredictionForm({
                 errorMessage}
             </p>
           )}
-        </>
-      )}
+      </>
     </form>
   )
 }

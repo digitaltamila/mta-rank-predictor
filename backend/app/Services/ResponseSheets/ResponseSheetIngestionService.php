@@ -67,7 +67,7 @@ class ResponseSheetIngestionService
                 ->get($url);
         } catch (ConnectionException $exception) {
             throw new ResponseSheetParserException(
-                'SSL error: the Digialm response sheet could not be downloaded from this server. Please try again later.',
+                'SSL error: the response sheet could not be downloaded from this server. Please try uploading the HTML file instead.',
                 previous: $exception,
             );
         }
@@ -98,7 +98,14 @@ class ResponseSheetIngestionService
 
         $host = strtolower($host);
         $isDigialm = $host === 'digialm.com' || str_ends_with($host, '.digialm.com');
+        $isCbexams = $host === 'cbexams.com' || str_ends_with($host, '.cbexams.com');
 
-        return $isDigialm && (bool) config('services.digialm.allow_insecure_ssl_fallback', false);
+        if ($isDigialm) {
+            return (bool) config('services.digialm.allow_insecure_ssl_fallback', false);
+        }
+
+        // cbexams.com uses a self-signed / untrusted cert on some servers;
+        // always fall back to avoid blocking SSC candidates.
+        return $isCbexams;
     }
 }
