@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { type ChangeEvent, useState } from 'react'
-import { FileUp, Loader2, WandSparkles, X } from 'lucide-react'
+import { useState } from 'react'
+import { Loader2, WandSparkles } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { Button } from './ui/button'
@@ -100,7 +100,6 @@ export function PredictionForm({
   onSubmit,
 }: PredictionFormProps) {
   const [activeTab, setActiveTab] = useState<'ssc' | 'rrb'>('ssc')
-  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
 
   const {
     register,
@@ -128,23 +127,6 @@ export function PredictionForm({
   const switchTab = (tab: 'ssc' | 'rrb') => {
     setActiveTab(tab)
     setValue('examTab', tab)
-  }
-
-  const handleHtmlUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-
-    if (!file) {
-      return
-    }
-
-    const html = await file.text()
-    setUploadedFileName(file.name)
-    setValue('uploadedHtml', html)
-  }
-
-  const clearUploadedHtml = () => {
-    setUploadedFileName(null)
-    setValue('uploadedHtml', '')
   }
 
   return (
@@ -213,43 +195,7 @@ export function PredictionForm({
               />
             </label>
 
-            <div className="rounded-md border border-dashed border-border bg-cream p-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-bold text-foreground">
-                    Server cannot access the URL?
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Save the answer-key page as HTML and upload it here.
-                  </p>
-                </div>
-                <label className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 text-sm font-bold text-navy transition hover:bg-muted">
-                  <FileUp aria-hidden size={17} />
-                  Upload HTML
-                  <input
-                    type="file"
-                    accept=".html,.htm,text/html"
-                    className="sr-only"
-                    onChange={handleHtmlUpload}
-                  />
-                </label>
-              </div>
-              {uploadedFileName && (
-                <div className="mt-3 flex items-center justify-between gap-3 rounded-md bg-surface px-3 py-2 text-sm text-muted-foreground">
-                  <span className="truncate">{uploadedFileName}</span>
-                  <button
-                    type="button"
-                    className="text-red"
-                    title="Remove uploaded HTML"
-                    onClick={clearUploadedHtml}
-                  >
-                    <X aria-hidden size={16} />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
+<div className="grid gap-4 md:grid-cols-3">
               <label className="grid gap-2" htmlFor="category">
                 <span className="text-sm font-semibold text-foreground">
                   Category
