@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\PredictionRun;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AdminPredictionController extends Controller
 {
@@ -54,6 +55,35 @@ class AdminPredictionController extends Controller
         ]);
     }
 
+    public function pruneDuplicates(Request $request): JsonResponse
+    {
+        $this->ensureAdmin($request);
+
+        $groups = DB::table('prediction_runs')
+            ->select('response_sheet_id', 'category', 'state', 'gender')
+            ->groupBy('response_sheet_id', 'category', 'state', 'gender')
+            ->havingRaw('COUNT(*) > 1')
+            ->get();
+
+        $deleted = 0;
+
+        foreach ($groups as $group) {
+            $ids = DB::table('prediction_runs')
+                ->where('response_sheet_id', $group->response_sheet_id)
+                ->where('category', $group->category)
+                ->where('state', $group->state)
+                ->where('gender', $group->gender)
+                ->orderByDesc('updated_at')
+                ->pluck('id');
+
+            $toDelete = $ids->slice(1)->values();
+            DB::table('prediction_runs')->whereIn('id', $toDelete)->delete();
+            $deleted += $toDelete->count();
+        }
+
+        return response()->json(['deleted' => $deleted]);
+    }
+
     private function summaryPayload(PredictionRun $run): array
     {
         return [
@@ -61,6 +91,7 @@ class AdminPredictionController extends Controller
             'examName' => $run->exam?->name,
             'candidateName' => $run->responseSheet?->candidate_name,
             'rollNumber' => $run->responseSheet?->roll_number,
+            'sourceUrl' => $run->responseSheet?->source_url,
             'category' => $run->category,
             'state' => $run->state,
             'gender' => $run->gender,

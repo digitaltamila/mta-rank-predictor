@@ -4,12 +4,14 @@ import {
   Download,
   FileText,
   Inbox,
+  Link2,
   Loader2,
   Lock,
   LogOut,
   RefreshCw,
   Settings,
   ShieldCheck,
+  Trash2,
   Upload,
 } from 'lucide-react'
 import {
@@ -19,6 +21,7 @@ import {
   fetchAdminPrediction,
   fetchAdminPredictions,
   fetchAdminScoringRules,
+  pruneDuplicatePredictions,
   updateAdminFeedbackStatus,
   updateAdminScoringRule,
   type AdminFeedback,
@@ -40,6 +43,48 @@ const formatDate = (value: string | null) =>
 
 const formatScore = (value: number) => value.toFixed(2)
 
+const categoryOptions = ['UR', 'OBC', 'SC', 'ST', 'EWS']
+
+function exportToCsv(records: AdminPredictionSummary[]) {
+  const headers = [
+    'Name', 'Roll Number', 'Exam', 'Category', 'State', 'Gender',
+    'Score', 'Correct', 'Wrong', 'Unanswered',
+    'Overall Rank', 'Category Rank', 'State Rank',
+    'Response Sheet URL', 'Submitted At',
+  ]
+
+  const escape = (val: string | number | null | undefined): string => {
+    if (val === null || val === undefined) return ''
+    const str = String(val)
+    return str.includes(',') || str.includes('"') || str.includes('\n')
+      ? `"${str.replace(/"/g, '""')}"`
+      : str
+  }
+
+  const rows = records.map((r) =>
+    [
+      r.candidateName, r.rollNumber, r.examName,
+      r.category, r.state, r.gender,
+      r.score, r.correctAnswers, r.wrongAnswers, r.unansweredQuestions,
+      r.overallRank, r.categoryRank, r.stateRank,
+      r.sourceUrl, r.createdAt,
+    ]
+      .map(escape)
+      .join(','),
+  )
+
+  const csv = [headers.join(','), ...rows].join('\n')
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `muppadai-records-${new Date().toISOString().slice(0, 10)}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 export function AdminPanel() {
   const [token, setToken] = useState(() => localStorage.getItem(tokenKey) ?? '')
   const [user, setUser] = useState<AdminUser | null>(null)
@@ -47,8 +92,7 @@ export function AdminPanel() {
   const [password, setPassword] = useState('admin123')
   const [records, setRecords] = useState<AdminPredictionSummary[]>([])
   const [feedback, setFeedback] = useState<AdminFeedback[]>([])
-  const [selectedRecord, setSelectedRecord] =
-    useState<AdminPredictionDetail | null>(null)
+  const [selectedRecord, setSelectedRecord] = useState<AdminPredictionDetail | null>(null)
   const [activeTab, setActiveTab] = useState<'records' | 'feedback' | 'marks'>('records')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -60,21 +104,66 @@ export function AdminPanel() {
     unansweredMarks: string
   } | null>(null)
   const [marksSaveStatus, setMarksSaveStatus] = useState<Record<number, string>>({})
+  const [pruneStatus, setPruneStatus] = useState<string | null>(null)
+
+  // Filters
+  const [filterSearch, setFilterSearch] = useState('')
+  const [filterExam, setFilterExam] = useState('all')
+  const [filterCategory, setFilterCategory] = useState('all')
+  const [filterState, setFilterState] = useState('all')
+
+  const uniqueStates = useMemo(
+    () => [...new Set(records.map((r) => r.state).filter(Boolean))].sort() as string[],
+    [records],
+  )
+
+  const filteredRecords = useMemo(() => {
+    const search = filterSearch.toLowerCase().trim()
+    return records.filter((r) => {
+      if (filterExam !== 'all') {
+        const name = r.examName?.toLowerCase() ?? ''
+        if (filterExam === 'ssc' && !name.includes('ssc')) return false
+        if (filterExam === 'rrb' && !name.includes('rrb')) return false
+      }
+      if (filterCategory !== 'all') {
+        if (filterCategory === 'none' && r.category !== null) return false
+        if (filterCategory !== 'none' && r.category !== filterCategory) return false
+      }
+      if (filterState !== 'all' && r.state !== filterState) return false
+      if (search) {
+        const name = r.candidateName?.toLowerCase() ?? ''
+        const roll = r.rollNumber?.toLowerCase() ?? ''
+        if (!name.includes(search) && !roll.includes(search)) return false
+      }
+      return true
+    })
+  }, [records, filterExam, filterCategory, filterState, filterSearch])
+
+  const hasActiveFilter =
+    filterSearch !== '' ||
+    filterExam !== 'all' ||
+    filterCategory !== 'all' ||
+    filterState !== 'all'
+
+  const clearFilters = () => {
+    setFilterSearch('')
+    setFilterExam('all')
+    setFilterCategory('all')
+    setFilterState('all')
+  }
 
   const stats = useMemo(
     () => ({
-      records: records.length,
-      feedback: feedback.filter((item) => item.status !== 'resolved').length,
-      uploaded: records.filter((record) => record.usedUploadedHtml).length,
+      total: records.length,
+      sscGd: records.filter((r) => r.examName?.toLowerCase().includes('ssc')).length,
+      rrb: records.filter((r) => r.examName?.toLowerCase().includes('rrb')).length,
+      openFeedback: feedback.filter((item) => item.status !== 'resolved').length,
     }),
     [feedback, records],
   )
 
   const loadAdminData = async (authToken = token) => {
-    if (!authToken) {
-      return
-    }
-
+    if (!authToken) return
     setIsLoading(true)
     setError(null)
     try {
@@ -88,12 +177,27 @@ export function AdminPanel() {
       setScoringRules(rulesResponse.data)
     } catch (exception) {
       setError(
-        exception instanceof ApiError
-          ? exception.message
-          : 'Admin data could not be loaded.',
+        exception instanceof ApiError ? exception.message : 'Admin data could not be loaded.',
       )
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handlePruneDuplicates = async () => {
+    setPruneStatus('Removing duplicates…')
+    try {
+      const result = await pruneDuplicatePredictions(token)
+      setPruneStatus(
+        result.deleted === 0
+          ? 'No duplicates found.'
+          : `Removed ${result.deleted} duplicate record(s).`,
+      )
+      if (result.deleted > 0) await loadAdminData()
+    } catch (exception) {
+      setPruneStatus(
+        exception instanceof ApiError ? exception.message : 'Cleanup failed.',
+      )
     }
   }
 
@@ -129,20 +233,14 @@ export function AdminPanel() {
       setUser(response.user)
       await loadAdminData(response.token)
     } catch (exception) {
-      setError(
-        exception instanceof ApiError
-          ? exception.message
-          : 'Admin login failed.',
-      )
+      setError(exception instanceof ApiError ? exception.message : 'Admin login failed.')
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleLogout = async () => {
-    if (token) {
-      await adminLogout(token).catch(() => undefined)
-    }
+    if (token) await adminLogout(token).catch(() => undefined)
     localStorage.removeItem(tokenKey)
     setToken('')
     setUser(null)
@@ -159,9 +257,7 @@ export function AdminPanel() {
       setSelectedRecord(response.data)
     } catch (exception) {
       setError(
-        exception instanceof ApiError
-          ? exception.message
-          : 'Record could not be opened.',
+        exception instanceof ApiError ? exception.message : 'Record could not be opened.',
       )
     } finally {
       setIsLoading(false)
@@ -294,9 +390,7 @@ export function AdminPanel() {
               <h1 className="text-xl font-extrabold leading-tight sm:text-2xl">
                 Submissions Dashboard
               </h1>
-              <p className="text-sm text-muted-foreground">
-                {user?.email ?? email}
-              </p>
+              <p className="text-sm text-muted-foreground">{user?.email ?? email}</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -304,8 +398,9 @@ export function AdminPanel() {
               type="button"
               variant="secondary"
               onClick={() => void loadAdminData()}
+              disabled={isLoading}
             >
-              <RefreshCw aria-hidden size={17} />
+              <RefreshCw aria-hidden size={17} className={isLoading ? 'animate-spin' : ''} />
               Refresh
             </Button>
             <Button type="button" variant="ghost" onClick={() => void handleLogout()}>
@@ -317,43 +412,22 @@ export function AdminPanel() {
       </header>
 
       <main className="mx-auto grid max-w-7xl gap-5 px-4 py-6">
-        <div className="grid gap-4 md:grid-cols-3">
+        {/* Stats */}
+        <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
           {[
-            {
-              label: 'Total Records',
-              value: stats.records,
-              icon: FileText,
-              tone: 'bg-navy/10 text-navy',
-            },
-            {
-              label: 'Open Feedback',
-              value: stats.feedback,
-              icon: Inbox,
-              tone: 'bg-red/10 text-red',
-            },
-            {
-              label: 'HTML Uploads',
-              value: stats.uploaded,
-              icon: Upload,
-              tone: 'bg-green/10 text-green',
-            },
+            { label: 'Total Records', value: stats.total, icon: FileText, tone: 'bg-navy/10 text-navy' },
+            { label: 'SSC GD', value: stats.sscGd, icon: FileText, tone: 'bg-blue/10 text-blue' },
+            { label: 'RRB', value: stats.rrb, icon: FileText, tone: 'bg-purple/10 text-purple' },
+            { label: 'Open Feedback', value: stats.openFeedback, icon: Inbox, tone: 'bg-red/10 text-red' },
           ].map((stat) => {
             const Icon = stat.icon
-
             return (
-              <Card
-                key={stat.label}
-                className="flex items-center justify-between p-5"
-              >
+              <Card key={stat.label} className="flex items-center justify-between p-5">
                 <div>
-                  <p className="text-sm font-semibold text-muted-foreground">
-                    {stat.label}
-                  </p>
+                  <p className="text-sm font-semibold text-muted-foreground">{stat.label}</p>
                   <p className="mt-1 text-3xl font-extrabold">{stat.value}</p>
                 </div>
-                <span
-                  className={`flex h-12 w-12 items-center justify-center rounded-lg ${stat.tone}`}
-                >
+                <span className={`flex h-12 w-12 items-center justify-center rounded-lg ${stat.tone}`}>
                   <Icon aria-hidden size={22} />
                 </span>
               </Card>
@@ -361,6 +435,7 @@ export function AdminPanel() {
           })}
         </div>
 
+        {/* Tab bar */}
         <div className="flex gap-2">
           <Button
             type="button"
@@ -390,62 +465,175 @@ export function AdminPanel() {
 
         {error && <p className="text-sm font-semibold text-red">{error}</p>}
 
+        {/* ── Records tab ── */}
         {activeTab === 'records' && (
-          <Card className="overflow-hidden p-0">
-            <div className="hidden grid-cols-[1.5fr_0.9fr_0.6fr_0.7fr_0.9fr_auto] gap-3 border-b border-border bg-muted/60 px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground md:grid">
-              <span>Candidate</span>
-              <span>Category / State</span>
-              <span>Score</span>
-              <span>Rank</span>
-              <span>Submitted</span>
-              <span className="sr-only">Open</span>
-            </div>
-            <div className="divide-y divide-border">
-              {records.map((record) => (
-                <button
-                  key={record.id}
-                  type="button"
-                  className="grid w-full grid-cols-2 items-center gap-2 px-4 py-3.5 text-left transition hover:bg-muted md:grid-cols-[1.5fr_0.9fr_0.6fr_0.7fr_0.9fr_auto] md:gap-3"
-                  onClick={() => void openRecord(record.id)}
-                >
-                  <span className="col-span-2 md:col-span-1">
-                    <span className="block font-bold text-foreground">
-                      {record.candidateName ?? 'Candidate'}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {record.rollNumber ?? '--'} • {record.examName ?? '--'}
-                    </span>
-                  </span>
-                  <span className="text-sm text-foreground">
-                    {record.category ?? '--'} / {record.state ?? '--'}
-                  </span>
-                  <span className="font-bold text-foreground">
-                    {formatScore(record.score)}
-                  </span>
-                  <span className="text-sm">
-                    <span className="inline-flex items-center rounded bg-navy/10 px-2 py-0.5 text-xs font-bold text-navy">
-                      Rank {record.overallRank}
-                    </span>
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    {formatDate(record.createdAt)}
-                  </span>
-                  <ChevronRight
-                    aria-hidden
-                    size={18}
-                    className="hidden text-muted-foreground md:block"
+          <div className="grid gap-4">
+            {/* Filter bar */}
+            <Card className="p-4">
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="grid flex-1 gap-1 text-xs font-semibold text-muted-foreground" style={{ minWidth: '180px' }}>
+                  Search
+                  <Input
+                    type="search"
+                    placeholder="Name or roll number…"
+                    value={filterSearch}
+                    onChange={(e) => setFilterSearch(e.target.value)}
                   />
-                </button>
-              ))}
-              {records.length === 0 && (
-                <p className="p-8 text-center text-muted-foreground">
-                  No submissions yet.
-                </p>
+                </label>
+                <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+                  Exam
+                  <Select value={filterExam} onChange={(e) => setFilterExam(e.target.value)} className="w-36">
+                    <option value="all">All Exams</option>
+                    <option value="ssc">SSC GD</option>
+                    <option value="rrb">RRB</option>
+                  </Select>
+                </label>
+                <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+                  Category
+                  <Select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-36">
+                    <option value="all">All Categories</option>
+                    {categoryOptions.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                    <option value="none">Not chosen</option>
+                  </Select>
+                </label>
+                <label className="grid gap-1 text-xs font-semibold text-muted-foreground">
+                  State
+                  <Select value={filterState} onChange={(e) => setFilterState(e.target.value)} className="w-40">
+                    <option value="all">All States</option>
+                    {uniqueStates.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </Select>
+                </label>
+                {hasActiveFilter && (
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="h-10 rounded-md border border-border bg-surface px-3 text-sm font-bold text-muted-foreground transition hover:bg-muted"
+                  >
+                    × Clear
+                  </button>
+                )}
+                <div className="ml-auto flex gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => exportToCsv(filteredRecords)}
+                    disabled={filteredRecords.length === 0}
+                  >
+                    <Download aria-hidden size={16} />
+                    Export CSV
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => void handlePruneDuplicates()}
+                    title="Remove duplicate submissions from DB"
+                  >
+                    <Trash2 aria-hidden size={16} />
+                    Remove Duplicates
+                  </Button>
+                </div>
+              </div>
+              {pruneStatus && (
+                <p className="mt-3 text-sm font-medium text-muted-foreground">{pruneStatus}</p>
               )}
+            </Card>
+
+            {/* Results count */}
+            <div className="flex items-center justify-between px-1">
+              <p className="text-sm font-semibold text-muted-foreground">
+                {filteredRecords.length === records.length
+                  ? `${records.length} record${records.length !== 1 ? 's' : ''}`
+                  : `${filteredRecords.length} of ${records.length} records`}
+              </p>
             </div>
-          </Card>
+
+            {/* Records table */}
+            <Card className="overflow-hidden p-0">
+              <div className="hidden grid-cols-[1.5fr_0.9fr_0.6fr_0.7fr_0.9fr_auto_auto] gap-3 border-b border-border bg-muted/60 px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground md:grid">
+                <span>Candidate</span>
+                <span>Category / State</span>
+                <span>Score</span>
+                <span>Rank</span>
+                <span>Submitted</span>
+                <span>URL</span>
+                <span className="sr-only">Open</span>
+              </div>
+              <div className="divide-y divide-border">
+                {filteredRecords.map((record) => (
+                  <div
+                    key={record.id}
+                    className="grid w-full grid-cols-2 items-center gap-2 px-4 py-3.5 md:grid-cols-[1.5fr_0.9fr_0.6fr_0.7fr_0.9fr_auto_auto] md:gap-3"
+                  >
+                    <button
+                      type="button"
+                      className="col-span-2 text-left transition md:col-span-5 md:grid md:grid-cols-[1.5fr_0.9fr_0.6fr_0.7fr_0.9fr] md:items-center md:gap-3"
+                      onClick={() => void openRecord(record.id)}
+                    >
+                      <span className="block">
+                        <span className="block font-bold text-foreground hover:text-navy">
+                          {record.candidateName ?? 'Candidate'}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {record.rollNumber ?? '--'} · {record.examName ?? '--'}
+                        </span>
+                      </span>
+                      <span className="hidden text-sm text-foreground md:block">
+                        {record.category ?? '--'} / {record.state ?? '--'}
+                      </span>
+                      <span className="hidden font-bold text-foreground md:block">
+                        {formatScore(record.score)}
+                      </span>
+                      <span className="hidden md:block">
+                        <span className="inline-flex items-center rounded bg-navy/10 px-2 py-0.5 text-xs font-bold text-navy">
+                          #{record.overallRank}
+                        </span>
+                      </span>
+                      <span className="hidden text-sm text-muted-foreground md:block">
+                        {formatDate(record.createdAt)}
+                      </span>
+                    </button>
+
+                    {/* URL link icon */}
+                    {record.sourceUrl ? (
+                      <a
+                        href={record.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Open response sheet URL"
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-navy transition hover:bg-navy hover:text-white"
+                      >
+                        <Link2 aria-hidden size={15} />
+                      </a>
+                    ) : (
+                      <span className="flex h-8 w-8 items-center justify-center text-muted-foreground">
+                        <Upload aria-hidden size={15} />
+                      </span>
+                    )}
+
+                    <ChevronRight
+                      aria-hidden
+                      size={18}
+                      className="hidden cursor-pointer text-muted-foreground md:block"
+                      onClick={() => void openRecord(record.id)}
+                    />
+                  </div>
+                ))}
+                {filteredRecords.length === 0 && (
+                  <p className="p-8 text-center text-muted-foreground">
+                    {records.length === 0 ? 'No submissions yet.' : 'No records match the current filters.'}
+                  </p>
+                )}
+              </div>
+            </Card>
+          </div>
         )}
 
+        {/* ── Feedback tab ── */}
         {activeTab === 'feedback' && (
           <Card className="grid gap-3 p-4">
             {feedback.map((item) => {
@@ -464,9 +652,7 @@ export function AdminPanel() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-bold capitalize">
-                          {item.type.replace('_', ' ')}
-                        </p>
+                        <p className="font-bold capitalize">{item.type.replace('_', ' ')}</p>
                         <span
                           className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold capitalize ${statusTone}`}
                         >
@@ -474,19 +660,16 @@ export function AdminPanel() {
                         </span>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {item.candidateName ?? 'Unknown candidate'} •{' '}
-                        {formatDate(item.createdAt)}
+                        {item.candidateName ?? 'Unknown candidate'} · {formatDate(item.createdAt)}
                       </p>
                     </div>
                     <Select
                       className="sm:w-40"
                       value={item.status}
                       onChange={(event) =>
-                        void updateAdminFeedbackStatus(
-                          token,
-                          item.id,
-                          event.target.value,
-                        ).then(() => loadAdminData())
+                        void updateAdminFeedbackStatus(token, item.id, event.target.value).then(
+                          () => loadAdminData(),
+                        )
                       }
                     >
                       <option value="open">Open</option>
@@ -494,26 +677,24 @@ export function AdminPanel() {
                       <option value="resolved">Resolved</option>
                     </Select>
                   </div>
-                  <p className="mt-3 rounded-md bg-muted/60 p-3 text-sm leading-6">
-                    {item.message}
-                  </p>
+                  <p className="mt-3 rounded-md bg-muted/60 p-3 text-sm leading-6">{item.message}</p>
                 </div>
               )
             })}
             {feedback.length === 0 && (
-              <p className="p-8 text-center text-muted-foreground">
-                No feedback yet.
-              </p>
+              <p className="p-8 text-center text-muted-foreground">No feedback yet.</p>
             )}
           </Card>
         )}
 
+        {/* ── Marks tab ── */}
         {activeTab === 'marks' && (
           <Card className="p-5">
             <div className="mb-5 border-b border-border pb-4">
               <h2 className="text-lg font-extrabold text-foreground">Marking Scheme</h2>
               <p className="text-sm text-muted-foreground">
-                Set correct / wrong / unanswered marks per exam. Changes apply immediately to new submissions.
+                Set correct / wrong / unanswered marks per exam. Changes apply immediately to new
+                submissions.
               </p>
             </div>
             <div className="grid gap-6">
@@ -610,17 +791,26 @@ export function AdminPanel() {
           </Card>
         )}
 
+        {/* ── Record detail ── */}
         {selectedRecord && (
           <Card className="p-5">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-xl font-extrabold">
-                  {selectedRecord.candidateName ?? 'Candidate'}
-                </h2>
+                <h2 className="text-xl font-extrabold">{selectedRecord.candidateName ?? 'Candidate'}</h2>
                 <p className="text-sm text-muted-foreground">
-                  {selectedRecord.rollNumber ?? '--'} •{' '}
-                  {selectedRecord.examName ?? '--'}
+                  {selectedRecord.rollNumber ?? '--'} · {selectedRecord.examName ?? '--'}
                 </p>
+                {selectedRecord.sourceUrl && (
+                  <a
+                    href={selectedRecord.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-navy underline"
+                  >
+                    <Link2 aria-hidden size={12} />
+                    View Response Sheet
+                  </a>
+                )}
               </div>
               <Button
                 type="button"
@@ -639,9 +829,7 @@ export function AdminPanel() {
                 ['Unanswered', selectedRecord.unansweredQuestions],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-md bg-muted p-3">
-                  <p className="text-xs font-bold uppercase text-text3">
-                    {label}
-                  </p>
+                  <p className="text-xs font-bold uppercase text-text3">{label}</p>
                   <p className="mt-1 text-lg font-extrabold">{value}</p>
                 </div>
               ))}
@@ -666,9 +854,7 @@ export function AdminPanel() {
                       <td className="px-3 py-2">{question.selectedAnswer ?? '--'}</td>
                       <td className="px-3 py-2">{question.correctAnswer ?? '--'}</td>
                       <td className="px-3 py-2">{question.status}</td>
-                      <td className="px-3 py-2">
-                        {question.marksAwarded.toFixed(2)}
-                      </td>
+                      <td className="px-3 py-2">{question.marksAwarded.toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>

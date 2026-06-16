@@ -16,6 +16,7 @@ export type AdminPredictionSummary = {
   examName: string | null
   candidateName: string | null
   rollNumber: string | null
+  sourceUrl: string | null
   category: string | null
   state: string | null
   gender: string | null
@@ -132,6 +133,11 @@ export const updateAdminFeedbackStatus = (
 
 export const adminLogout = (token: string) =>
   adminRequest<{ status: string }>('/v1/admin/logout', token, {
+    method: 'POST',
+  })
+
+export const pruneDuplicatePredictions = (token: string) =>
+  adminRequest<{ deleted: number }>('/v1/admin/predictions/prune-duplicates', token, {
     method: 'POST',
   })
 
