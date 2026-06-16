@@ -2,10 +2,13 @@ import { Suspense, lazy, useMemo } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
-  ArrowRight,
   CheckCircle2,
   DatabaseZap,
+  FileSearch,
   Menu,
+  ShieldCheck,
+  TrendingUp,
+  Trophy,
 } from 'lucide-react'
 import { ApiError } from './api/http'
 import { createPrediction } from './api/predictions'
@@ -17,11 +20,122 @@ import { Card } from './components/ui/card'
 import { examGroups, faqs, features, workflowSteps } from './lib/landing-content'
 
 const navItems = ['Features', 'Exams', 'FAQ']
+const heroInsights = [
+  {
+    label: 'Response sheet parser',
+    value: 'HTML + URL',
+    icon: FileSearch,
+    color: 'text-blue',
+    background: 'bg-blue/10',
+  },
+  {
+    label: 'Secure candidate records',
+    value: 'Stored',
+    icon: ShieldCheck,
+    color: 'text-green',
+    background: 'bg-green/10',
+  },
+  {
+    label: 'Rank signal',
+    value: 'Live',
+    icon: TrendingUp,
+    color: 'text-red',
+    background: 'bg-red/10',
+  },
+]
+
 const ResultSummary = lazy(() =>
   import('./components/result-summary').then((module) => ({
     default: module.ResultSummary,
   })),
 )
+
+function HeroInsightVisual() {
+  return (
+    <motion.div
+      className="relative overflow-hidden rounded-lg border border-border bg-surface p-4 shadow-[0_20px_55px_rgba(17,24,39,0.12)]"
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.12, duration: 0.5, ease: 'easeOut' }}
+    >
+      <div className="absolute inset-x-0 top-0 h-1 bg-red" />
+      <div className="flex items-center justify-between border-b border-border pb-4">
+        <div>
+          <p className="text-xs font-bold uppercase text-muted-foreground">
+            Live Engine
+          </p>
+          <p className="mt-1 text-lg font-extrabold text-foreground">
+            Rank intelligence
+          </p>
+        </div>
+        <motion.div
+          className="flex h-12 w-12 items-center justify-center rounded-md bg-yellow/25 text-navy"
+          animate={{ rotate: [0, -5, 5, 0], scale: [1, 1.04, 1] }}
+          transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
+        >
+          <Trophy aria-hidden size={25} />
+        </motion.div>
+      </div>
+
+      <div className="mt-4 grid gap-3">
+        {heroInsights.map((item, index) => {
+          const Icon = item.icon
+
+          return (
+            <motion.div
+              key={item.label}
+              className="flex items-center justify-between rounded-md border border-border bg-muted px-3 py-3"
+              animate={{ y: [0, -4, 0] }}
+              transition={{
+                duration: 3.4,
+                delay: index * 0.28,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <span
+                  className={`flex h-10 w-10 items-center justify-center rounded-md ${item.background} ${item.color}`}
+                >
+                  <Icon aria-hidden size={20} />
+                </span>
+                <span className="text-sm font-bold text-foreground">
+                  {item.label}
+                </span>
+              </div>
+              <span className="rounded bg-surface px-2 py-1 text-xs font-extrabold text-navy">
+                {item.value}
+              </span>
+            </motion.div>
+          )
+        })}
+      </div>
+
+      <div className="mt-5 border-t border-border pt-4">
+        <div className="flex h-16 items-end gap-2">
+          {[28, 44, 32, 58, 40, 52, 36].map((height, index) => (
+            <motion.span
+              key={`${height}-${index}`}
+              className="flex-1 rounded-t bg-navy"
+              initial={{ height: 10 }}
+              animate={{ height: [height * 0.55, height, height * 0.75] }}
+              transition={{
+                duration: 2.8,
+                delay: index * 0.14,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
+            />
+          ))}
+        </div>
+        <div className="mt-3 flex items-center justify-between text-xs font-bold text-muted-foreground">
+          <span>Score spread</span>
+          <span className="text-green">Auto updated</span>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
 
 function CandidateApp() {
   const predictionMutation = useMutation({
@@ -97,22 +211,27 @@ function CandidateApp() {
         <section className="relative isolate overflow-hidden bg-background">
           <div className="mx-auto grid min-h-[76svh] max-w-6xl content-center px-4 py-12 sm:px-6 lg:px-8">
             <motion.div
-              className="mx-auto w-full max-w-5xl"
+              className="mx-auto w-full max-w-6xl"
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, ease: 'easeOut' }}
             >
-              <div className="mb-5 inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-semibold text-navy shadow-[0_16px_40px_rgba(17,24,39,0.08)]">
-                <DatabaseZap aria-hidden size={16} />
-                Result-season ready rank intelligence
+              <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+                <div>
+                  <div className="mb-5 inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-sm font-semibold text-navy shadow-[0_16px_40px_rgba(17,24,39,0.08)]">
+                    <DatabaseZap aria-hidden size={16} />
+                    Result-season ready rank intelligence
+                  </div>
+                  <h1 className="max-w-3xl text-4xl font-extrabold leading-tight text-foreground sm:text-5xl lg:text-6xl">
+                    Muppadai Rank Predictor
+                  </h1>
+                  <p className="mt-4 max-w-3xl text-lg font-medium text-muted-foreground sm:text-xl">
+                    Predict Your Rank Before Official Results
+                  </p>
+                </div>
+                <HeroInsightVisual />
               </div>
-              <h1 className="max-w-3xl text-4xl font-extrabold leading-tight text-foreground sm:text-5xl lg:text-6xl">
-                Muppadai Rank Predictor
-              </h1>
-              <p className="mt-4 max-w-3xl text-lg font-medium text-muted-foreground sm:text-xl">
-                Predict Your Rank Before Official Results
-              </p>
-              <div className="mt-8">
+              <div className="mt-8 max-w-5xl">
                 <PredictionForm
                   isSubmitting={predictionMutation.isPending}
                   errorMessage={formError}
@@ -237,10 +356,6 @@ function CandidateApp() {
                   Built for high-volume Indian competitive exams
                 </h2>
               </div>
-              <Button type="button" variant="secondary">
-                Configurable exams
-                <ArrowRight aria-hidden size={17} />
-              </Button>
             </div>
             <div className="grid gap-4 md:grid-cols-5">
               {examGroups.map((group) => (
