@@ -141,6 +141,12 @@ export const pruneDuplicatePredictions = (token: string) =>
     method: 'POST',
   })
 
+export const deleteAdminPredictions = (token: string, ids: string[]) =>
+  adminRequest<{ deleted: number }>('/v1/admin/predictions/bulk', token, {
+    method: 'DELETE',
+    body: JSON.stringify({ ids }),
+  })
+
 export type AdminScoringRule = {
   examId: number
   examName: string

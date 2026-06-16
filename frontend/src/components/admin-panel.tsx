@@ -17,6 +17,7 @@ import {
 import {
   adminLogin,
   adminLogout,
+  deleteAdminPredictions,
   fetchAdminFeedback,
   fetchAdminPrediction,
   fetchAdminPredictions,
@@ -88,8 +89,8 @@ function exportToCsv(records: AdminPredictionSummary[]) {
 export function AdminPanel() {
   const [token, setToken] = useState(() => localStorage.getItem(tokenKey) ?? '')
   const [user, setUser] = useState<AdminUser | null>(null)
-  const [email, setEmail] = useState('admin@muppadai.local')
-  const [password, setPassword] = useState('admin123')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [records, setRecords] = useState<AdminPredictionSummary[]>([])
   const [feedback, setFeedback] = useState<AdminFeedback[]>([])
   const [selectedRecord, setSelectedRecord] = useState<AdminPredictionDetail | null>(null)
@@ -105,6 +106,8 @@ export function AdminPanel() {
   } | null>(null)
   const [marksSaveStatus, setMarksSaveStatus] = useState<Record<number, string>>({})
   const [pruneStatus, setPruneStatus] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
 
   // Filters
   const [filterSearch, setFilterSearch] = useState('')
@@ -198,6 +201,47 @@ export function AdminPanel() {
       setPruneStatus(
         exception instanceof ApiError ? exception.message : 'Cleanup failed.',
       )
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    const ids = [...selectedIds]
+    if (ids.length === 0) return
+    if (!window.confirm(`Delete ${ids.length} selected record(s)? This cannot be undone.`)) return
+    setIsBulkDeleting(true)
+    try {
+      const result = await deleteAdminPredictions(token, ids)
+      setSelectedIds(new Set())
+      if (selectedRecord && ids.includes(selectedRecord.id)) setSelectedRecord(null)
+      await loadAdminData()
+      setError(null)
+      setPruneStatus(`Deleted ${result.deleted} record(s).`)
+    } catch (exception) {
+      setError(exception instanceof ApiError ? exception.message : 'Bulk delete failed.')
+    } finally {
+      setIsBulkDeleting(false)
+    }
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    const filteredIds = filteredRecords.map((r) => r.id)
+    const allSelected = filteredIds.every((id) => selectedIds.has(id))
+    if (allSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        filteredIds.forEach((id) => next.delete(id))
+        return next
+      })
+    } else {
+      setSelectedIds((prev) => new Set([...prev, ...filteredIds]))
     }
   }
 
@@ -516,7 +560,23 @@ export function AdminPanel() {
                     × Clear
                   </button>
                 )}
-                <div className="ml-auto flex gap-2">
+                <div className="ml-auto flex flex-wrap gap-2">
+                  {selectedIds.size > 0 && (
+                    <Button
+                      type="button"
+                      variant="primary"
+                      onClick={() => void handleBulkDelete()}
+                      disabled={isBulkDeleting}
+                      className="bg-red hover:bg-red/90"
+                    >
+                      {isBulkDeleting ? (
+                        <Loader2 className="animate-spin" aria-hidden size={16} />
+                      ) : (
+                        <Trash2 aria-hidden size={16} />
+                      )}
+                      Delete {selectedIds.size} selected
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="secondary"
@@ -530,7 +590,6 @@ export function AdminPanel() {
                     type="button"
                     variant="ghost"
                     onClick={() => void handlePruneDuplicates()}
-                    title="Remove duplicate submissions from DB"
                   >
                     <Trash2 aria-hidden size={16} />
                     Remove Duplicates
@@ -553,7 +612,19 @@ export function AdminPanel() {
 
             {/* Records table */}
             <Card className="overflow-hidden p-0">
-              <div className="hidden grid-cols-[1.5fr_0.9fr_0.6fr_0.7fr_0.9fr_auto_auto] gap-3 border-b border-border bg-muted/60 px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground md:grid">
+              <div className="hidden grid-cols-[auto_1.5fr_0.9fr_0.6fr_0.7fr_0.9fr_auto_auto] gap-3 border-b border-border bg-muted/60 px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground md:grid">
+                <span className="flex items-center">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all"
+                    className="h-4 w-4 cursor-pointer rounded border-border accent-navy"
+                    checked={
+                      filteredRecords.length > 0 &&
+                      filteredRecords.every((r) => selectedIds.has(r.id))
+                    }
+                    onChange={toggleSelectAll}
+                  />
+                </span>
                 <span>Candidate</span>
                 <span>Category / State</span>
                 <span>Score</span>
@@ -563,66 +634,80 @@ export function AdminPanel() {
                 <span className="sr-only">Open</span>
               </div>
               <div className="divide-y divide-border">
-                {filteredRecords.map((record) => (
-                  <div
-                    key={record.id}
-                    className="grid w-full grid-cols-2 items-center gap-2 px-4 py-3.5 md:grid-cols-[1.5fr_0.9fr_0.6fr_0.7fr_0.9fr_auto_auto] md:gap-3"
-                  >
-                    <button
-                      type="button"
-                      className="col-span-2 text-left transition md:col-span-5 md:grid md:grid-cols-[1.5fr_0.9fr_0.6fr_0.7fr_0.9fr] md:items-center md:gap-3"
-                      onClick={() => void openRecord(record.id)}
+                {filteredRecords.map((record) => {
+                  const isSelected = selectedIds.has(record.id)
+                  return (
+                    <div
+                      key={record.id}
+                      className={`grid w-full grid-cols-[auto_1fr_auto] items-center gap-2 px-4 py-3.5 transition md:grid-cols-[auto_1.5fr_0.9fr_0.6fr_0.7fr_0.9fr_auto_auto] md:gap-3 ${isSelected ? 'bg-navy/5' : 'hover:bg-muted/50'}`}
                     >
-                      <span className="block">
-                        <span className="block font-bold text-foreground hover:text-navy">
-                          {record.candidateName ?? 'Candidate'}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          {record.rollNumber ?? '--'} · {record.examName ?? '--'}
-                        </span>
-                      </span>
-                      <span className="hidden text-sm text-foreground md:block">
-                        {record.category ?? '--'} / {record.state ?? '--'}
-                      </span>
-                      <span className="hidden font-bold text-foreground md:block">
-                        {formatScore(record.score)}
-                      </span>
-                      <span className="hidden md:block">
-                        <span className="inline-flex items-center rounded bg-navy/10 px-2 py-0.5 text-xs font-bold text-navy">
-                          #{record.overallRank}
-                        </span>
-                      </span>
-                      <span className="hidden text-sm text-muted-foreground md:block">
-                        {formatDate(record.createdAt)}
-                      </span>
-                    </button>
-
-                    {/* URL link icon */}
-                    {record.sourceUrl ? (
-                      <a
-                        href={record.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        title="Open response sheet URL"
+                      {/* Checkbox */}
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${record.candidateName ?? 'record'}`}
+                        className="h-4 w-4 cursor-pointer rounded border-border accent-navy"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(record.id)}
                         onClick={(e) => e.stopPropagation()}
-                        className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-navy transition hover:bg-navy hover:text-white"
-                      >
-                        <Link2 aria-hidden size={15} />
-                      </a>
-                    ) : (
-                      <span className="flex h-8 w-8 items-center justify-center text-muted-foreground">
-                        <Upload aria-hidden size={15} />
-                      </span>
-                    )}
+                      />
 
-                    <ChevronRight
-                      aria-hidden
-                      size={18}
-                      className="hidden cursor-pointer text-muted-foreground md:block"
-                      onClick={() => void openRecord(record.id)}
-                    />
-                  </div>
-                ))}
+                      {/* Main clickable area */}
+                      <button
+                        type="button"
+                        className="col-span-1 text-left md:col-span-5 md:grid md:grid-cols-[1.5fr_0.9fr_0.6fr_0.7fr_0.9fr] md:items-center md:gap-3"
+                        onClick={() => void openRecord(record.id)}
+                      >
+                        <span className="block">
+                          <span className="block font-bold text-foreground hover:text-navy">
+                            {record.candidateName ?? 'Candidate'}
+                          </span>
+                          <span className="text-sm text-muted-foreground">
+                            {record.rollNumber ?? '--'} · {record.examName ?? '--'}
+                          </span>
+                        </span>
+                        <span className="hidden text-sm text-foreground md:block">
+                          {record.category ?? '--'} / {record.state ?? '--'}
+                        </span>
+                        <span className="hidden font-bold text-foreground md:block">
+                          {formatScore(record.score)}
+                        </span>
+                        <span className="hidden md:block">
+                          <span className="inline-flex items-center rounded bg-navy/10 px-2 py-0.5 text-xs font-bold text-navy">
+                            #{record.overallRank}
+                          </span>
+                        </span>
+                        <span className="hidden text-sm text-muted-foreground md:block">
+                          {formatDate(record.createdAt)}
+                        </span>
+                      </button>
+
+                      {/* URL link icon */}
+                      {record.sourceUrl ? (
+                        <a
+                          href={record.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Open response sheet URL"
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-surface text-navy transition hover:bg-navy hover:text-white"
+                        >
+                          <Link2 aria-hidden size={15} />
+                        </a>
+                      ) : (
+                        <span className="flex h-8 w-8 items-center justify-center text-muted-foreground">
+                          <Upload aria-hidden size={15} />
+                        </span>
+                      )}
+
+                      <ChevronRight
+                        aria-hidden
+                        size={18}
+                        className="hidden cursor-pointer text-muted-foreground md:block"
+                        onClick={() => void openRecord(record.id)}
+                      />
+                    </div>
+                  )
+                })}
                 {filteredRecords.length === 0 && (
                   <p className="p-8 text-center text-muted-foreground">
                     {records.length === 0 ? 'No submissions yet.' : 'No records match the current filters.'}

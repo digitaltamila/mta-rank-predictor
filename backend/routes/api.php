@@ -30,6 +30,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/admin/logout', [AdminAuthController::class, 'logout']);
     Route::get('/admin/predictions', [AdminPredictionController::class, 'index']);
     Route::get('/admin/predictions/{predictionRun}', [AdminPredictionController::class, 'show']);
+    Route::delete('/admin/predictions/bulk', [AdminPredictionController::class, 'destroyBulk']);
     Route::post('/admin/predictions/prune-duplicates', [AdminPredictionController::class, 'pruneDuplicates']);
     Route::get('/admin/feedback', [FeedbackController::class, 'index']);
     Route::patch('/admin/feedback/{feedback}', [FeedbackController::class, 'update']);

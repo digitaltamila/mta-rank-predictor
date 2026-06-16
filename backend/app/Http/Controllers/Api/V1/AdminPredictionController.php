@@ -55,6 +55,21 @@ class AdminPredictionController extends Controller
         ]);
     }
 
+    public function destroyBulk(Request $request): JsonResponse
+    {
+        $this->ensureAdmin($request);
+
+        $ids = $request->input('ids', []);
+
+        if (! is_array($ids) || empty($ids)) {
+            return response()->json(['message' => 'No record IDs provided.'], 422);
+        }
+
+        $deleted = PredictionRun::query()->whereIn('id', $ids)->delete();
+
+        return response()->json(['deleted' => $deleted]);
+    }
+
     public function pruneDuplicates(Request $request): JsonResponse
     {
         $this->ensureAdmin($request);
