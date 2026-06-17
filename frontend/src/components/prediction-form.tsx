@@ -450,13 +450,29 @@ export function PredictionForm({ isSubmitting, errorMessage, onSubmit }: Predict
                     {otpVerifying ? <Loader2 className="animate-spin" size={16} /> : 'Verify & Continue'}
                   </Button>
                 </div>
-                <button
-                  type="button"
-                  className="self-start text-xs text-navy underline underline-offset-2"
-                  onClick={() => { setOtpSent(false); setOtpInput(''); setOtpError(null) }}
-                >
-                  Change number
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={otpSending}
+                    className="text-xs font-semibold text-navy underline underline-offset-2 disabled:opacity-50"
+                    onClick={async () => {
+                      setOtpInput(''); setOtpError(null)
+                      setOtpSending(true)
+                      try { await sendOtp(mobileInput.trim()); }
+                      catch (e: unknown) { setOtpError(e instanceof Error ? e.message : 'Failed to resend OTP.') }
+                      finally { setOtpSending(false) }
+                    }}
+                  >
+                    {otpSending ? 'Sending…' : 'Resend OTP'}
+                  </button>
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline underline-offset-2"
+                    onClick={() => { setOtpSent(false); setOtpInput(''); setOtpError(null) }}
+                  >
+                    Change number
+                  </button>
+                </div>
               </label>
             )}
 

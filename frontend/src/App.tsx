@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { ApiError } from './api/http'
 import { createPrediction, fetchStudentResults, sendOtp, verifyOtp, type StudentResult } from './api/predictions'
+
 import { AdminPanel } from './components/admin-panel'
 import type { PredictionFormValues } from './components/prediction-form'
 import { PredictionForm, getSavedProfile, saveProfile, clearProfile } from './components/prediction-form'
@@ -138,16 +139,16 @@ function HeroInsightVisual() {
 }
 
 function MyResultsPanel({ onClose }: { onClose: () => void }) {
-  const [profile] = useState(getSavedProfile)
-  const [mobile, setMobile] = useState(profile?.mobile ?? '')
+  const [profile, setProfile] = useState(getSavedProfile)
+  const [mobile, setMobile] = useState('')
   const [otp, setOtp] = useState('')
   const [otpSent, setOtpSent] = useState(false)
   const [sending, setSending] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [results, setResults] = useState<StudentResult[] | null>(profile ? [] : null)
-  const [studentName, setStudentName] = useState(profile?.name ?? '')
+  const [results, setResults] = useState<StudentResult[] | null>(null)
   const [loading, setLoading] = useState(false)
+  const [sessionExpired, setSessionExpired] = useState(false)
 
   const loadResults = async (mob: string, token: string) => {
     setLoading(true)
@@ -155,27 +156,34 @@ function MyResultsPanel({ onClose }: { onClose: () => void }) {
     try {
       const res = await fetchStudentResults(mob, token)
       setResults(res.data)
-      setStudentName(res.name ?? mob)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load results.')
+      if (e instanceof ApiError && e.status === 401) {
+        setSessionExpired(true)
+      } else {
+        setError(e instanceof Error ? e.message : 'Could not load results.')
+      }
     } finally {
       setLoading(false)
     }
   }
 
-  // If profile exists, load immediately
-  useMemo(() => {
-    if (profile) {
-      void loadResults(profile.mobile, profile.sessionToken)
-    }
+  useEffect(() => {
+    if (profile) void loadResults(profile.mobile, profile.sessionToken)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleSendOtp = async () => {
-    if (!/^[6-9]\d{9}$/.test(mobile.trim())) { setError('Enter a valid 10-digit Indian mobile number.'); return }
+  const handleSendOtp = async (mob: string) => {
+    if (!/^[6-9]\d{9}$/.test(mob)) { setError('Enter a valid 10-digit Indian mobile number.'); return }
     setError(null); setSending(true)
-    try { await sendOtp(mobile.trim()); setOtpSent(true) }
+    try { await sendOtp(mob); setOtpSent(true) }
     catch (e) { setError(e instanceof Error ? e.message : 'Failed to send OTP.') }
+    finally { setSending(false) }
+  }
+
+  const handleResendOtp = async () => {
+    setOtp(''); setError(null); setSending(true)
+    try { await sendOtp(mobile.trim()); setOtpSent(true) }
+    catch (e) { setError(e instanceof Error ? e.message : 'Failed to resend OTP.') }
     finally { setSending(false) }
   }
 
@@ -184,41 +192,81 @@ function MyResultsPanel({ onClose }: { onClose: () => void }) {
     setError(null); setVerifying(true)
     try {
       const res = await verifyOtp(mobile.trim(), otp)
-      saveProfile({ mobile: res.mobile, sessionToken: res.session_token })
+      const newProfile = { mobile: res.mobile, sessionToken: res.session_token }
+      saveProfile(newProfile)
+      setProfile(newProfile)
+      setSessionExpired(false)
+      setOtpSent(false); setMobile(''); setOtp('')
       await loadResults(res.mobile, res.session_token)
     }
     catch (e) { setError(e instanceof Error ? e.message : 'Invalid OTP.') }
     finally { setVerifying(false) }
   }
 
-  const handleLogout = () => { clearProfile(); onClose() }
+  const handleLogout = () => {
+    clearProfile()
+    setProfile(null); setResults(null); setSessionExpired(false)
+    setMobile(''); setOtp(''); setOtpSent(false); setError(null)
+  }
+
+  const showLoginForm = !profile || sessionExpired
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-md rounded-t-2xl bg-surface sm:rounded-2xl shadow-[0_24px_60px_rgba(17,24,39,0.2)] border border-border max-h-[90vh] overflow-y-auto">
+
+        {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div className="flex items-center gap-2">
             <History size={18} className="text-navy" aria-hidden />
             <h2 className="text-base font-extrabold text-foreground">My Results</h2>
           </div>
-          <div className="flex items-center gap-2">
-            {profile && (
-              <button type="button" onClick={handleLogout} className="text-xs font-semibold text-muted-foreground underline underline-offset-2">
-                Logout
-              </button>
-            )}
-            <button type="button" onClick={onClose} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted text-muted-foreground">
-              <X size={16} />
-            </button>
-          </div>
+          <button type="button" onClick={onClose} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted text-muted-foreground">
+            <X size={16} />
+          </button>
         </div>
 
-        <div className="p-5">
-          {/* No profile yet — show login */}
-          {!profile && results === null && (
-            <div className="grid gap-4">
-              <p className="text-sm text-muted-foreground">Enter your mobile number to view your past results.</p>
+        <div className="p-5 grid gap-4">
+
+          {/* Profile card — always shown when logged in */}
+          {profile && !sessionExpired && (
+            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/50 px-4 py-3">
+              <div>
+                <p className="font-bold text-foreground">{profile.name ?? 'Student'}</p>
+                <p className="text-xs text-muted-foreground">{profile.mobile}</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="text-xs font-semibold text-red underline underline-offset-2"
+              >
+                Logout
+              </button>
+            </div>
+          )}
+
+          {/* Session expired banner */}
+          {sessionExpired && profile && (
+            <div className="rounded-lg border border-yellow/40 bg-yellow/10 p-4">
+              <p className="text-sm font-semibold text-foreground">Session expired for {profile.mobile}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Re-verify your number to continue.</p>
+              <button
+                type="button"
+                className="mt-2 text-xs font-bold text-navy underline underline-offset-2"
+                onClick={() => { setMobile(profile.mobile); setSessionExpired(false) }}
+              >
+                Re-verify →
+              </button>
+            </div>
+          )}
+
+          {/* Login / OTP form — only when no profile or session expired */}
+          {showLoginForm && (
+            <div className="grid gap-3">
+              {!sessionExpired && (
+                <p className="text-sm text-muted-foreground">Enter your mobile number to view your past results.</p>
+              )}
               <div className="flex gap-2">
                 <input
                   type="tel"
@@ -231,25 +279,44 @@ function MyResultsPanel({ onClose }: { onClose: () => void }) {
                   className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
                 />
                 {!otpSent && (
-                  <Button type="button" variant="secondary" disabled={sending || mobile.length < 10} onClick={handleSendOtp}>
+                  <Button type="button" variant="secondary" disabled={sending || mobile.length < 10} onClick={() => handleSendOtp(mobile.trim())}>
                     {sending ? <Loader2 className="animate-spin" size={14} /> : 'Send OTP'}
                   </Button>
                 )}
               </div>
               {otpSent && (
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="6-digit OTP"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    maxLength={6}
-                    className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
-                  />
-                  <Button type="button" variant="secondary" disabled={verifying || otp.length < 6} onClick={handleVerify}>
-                    {verifying ? <Loader2 className="animate-spin" size={14} /> : 'Verify'}
-                  </Button>
+                <div className="grid gap-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="6-digit OTP"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      maxLength={6}
+                      className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-navy focus:ring-2 focus:ring-navy/20"
+                    />
+                    <Button type="button" variant="secondary" disabled={verifying || otp.length < 6} onClick={handleVerify}>
+                      {verifying ? <Loader2 className="animate-spin" size={14} /> : 'Verify'}
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={sending}
+                      onClick={handleResendOtp}
+                      className="text-xs font-semibold text-navy underline underline-offset-2 disabled:opacity-50"
+                    >
+                      {sending ? 'Sending…' : 'Resend OTP'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setOtpSent(false); setOtp(''); setError(null) }}
+                      className="text-xs text-muted-foreground underline underline-offset-2"
+                    >
+                      Change number
+                    </button>
+                  </div>
                 </div>
               )}
               {error && <p className="text-sm font-medium text-red">{error}</p>}
@@ -265,17 +332,13 @@ function MyResultsPanel({ onClose }: { onClose: () => void }) {
           )}
 
           {/* Results list */}
-          {!loading && results !== null && (
+          {!loading && results !== null && !sessionExpired && (
             <div className="grid gap-3">
-              {studentName && (
-                <p className="text-sm font-semibold text-foreground">
-                  Welcome, {studentName}
-                  <span className="ml-2 text-xs font-normal text-muted-foreground">({profile?.mobile})</span>
-                </p>
-              )}
               {error && <p className="text-sm font-medium text-red">{error}</p>}
               {results.length === 0 && !error && (
-                <p className="py-6 text-center text-sm text-muted-foreground">No results found. Submit your response sheet URL to get started.</p>
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  No results yet. Submit your response sheet URL to get started.
+                </p>
               )}
               {results.map((r) => (
                 <div key={r.id} className="rounded-lg border border-border p-3">
@@ -291,7 +354,9 @@ function MyResultsPanel({ onClose }: { onClose: () => void }) {
                     {r.category && <span>Cat: <strong className="text-foreground">{r.category}</strong></span>}
                     {r.state && <span>{r.state}</span>}
                   </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">{r.createdAt ? new Date(r.createdAt).toLocaleString('en-IN') : ''}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {r.createdAt ? new Date(r.createdAt).toLocaleString('en-IN') : ''}
+                  </p>
                 </div>
               ))}
             </div>
