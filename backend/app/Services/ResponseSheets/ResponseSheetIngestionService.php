@@ -84,8 +84,10 @@ class ResponseSheetIngestionService
         // Extract actual submit button values from Part A HTML (avoid hardcoding)
         $buttonValues = $this->extractPartButtonValues($partAHtml);
 
-        // POST for Parts B, C, D using Part A's viewstate
-        foreach (['P2' => 'B', 'P3' => 'C', 'P4' => 'D'] as $param => $partLetter) {
+        // POST for all 4 parts (A–D). The initial GET page often shows only metadata;
+        // questions for Part A are only returned via a P1 POST, same as B/C/D.
+        // Keep GET result as fallback for Part A in case P1 button does not exist.
+        foreach (['P1' => 'A', 'P2' => 'B', 'P3' => 'C', 'P4' => 'D'] as $param => $partLetter) {
             $buttonValue = $buttonValues[$param] ?? "Click Here for PART-$partLetter";
             $fields = array_merge($formState, [$param => $buttonValue]);
 
