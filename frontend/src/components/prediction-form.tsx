@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useState, useRef } from 'react'
-import { CheckCircle2, Loader2, MessageCircle, WandSparkles } from 'lucide-react'
+import { CheckCircle2, Loader2, WandSparkles } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { sendOtp, verifyOtp } from '../api/predictions'
@@ -69,16 +69,12 @@ const predictionSchema = z.object({
           const host = new URL(url).hostname.toLowerCase()
           const isDigialm = host === 'digialm.com' || host.endsWith('.digialm.com')
           const isCbexams = host === 'cbexams.com' || host.endsWith('.cbexams.com')
-
           return isDigialm || isCbexams
         } catch {
           return false
         }
       },
-      {
-        message:
-          'Enter a Digialm URL (RRB) or cbexams URL (SSC) from your response sheet.',
-      },
+      { message: 'Enter a Digialm URL (RRB) or cbexams URL (SSC) from your response sheet.' },
     ),
   category: z.string().optional(),
   gender: z.string().optional(),
@@ -98,31 +94,22 @@ type PredictionFormProps = {
   onSubmit: (values: PredictionFormValues) => void
 }
 
-export function PredictionForm({
-  isSubmitting,
-  errorMessage,
-  onSubmit,
-}: PredictionFormProps) {
+export function PredictionForm({ isSubmitting, errorMessage, onSubmit }: PredictionFormProps) {
   const [activeTab, setActiveTab] = useState<'ssc' | 'rrb'>('ssc')
 
-  // OTP flow state
-  const [mobileInput, setMobileInput] = useState('')
+  // Step 1: OTP verification state
+  const [step, setStep] = useState<'otp' | 'form'>('otp')
   const [studentNameInput, setStudentNameInput] = useState('')
+  const [mobileInput, setMobileInput] = useState('')
   const [otpInput, setOtpInput] = useState('')
   const [otpSending, setOtpSending] = useState(false)
   const [otpVerifying, setOtpVerifying] = useState(false)
   const [otpSent, setOtpSent] = useState(false)
   const [otpError, setOtpError] = useState<string | null>(null)
   const [verifiedMobile, setVerifiedMobile] = useState<string | null>(null)
-  const [showOtpSection, setShowOtpSection] = useState(false)
   const otpInputRef = useRef<HTMLInputElement>(null)
 
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    formState: { errors },
-  } = useForm<PredictionFormValues>({
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<PredictionFormValues>({
     resolver: zodResolver(predictionSchema),
     defaultValues: {
       responseSheetUrl: '',
@@ -167,7 +154,7 @@ export function PredictionForm({
   const handleVerifyOtp = async () => {
     const cleaned = otpInput.trim()
     if (cleaned.length !== 6) {
-      setOtpError('Enter the 6-digit OTP.')
+      setOtpError('Enter the 6-digit OTP sent to your mobile.')
       return
     }
     setOtpError(null)
@@ -178,6 +165,7 @@ export function PredictionForm({
       setValue('mobile', result.mobile)
       setValue('studentName', studentNameInput.trim() || undefined)
       setValue('otpSessionToken', result.session_token)
+      setStep('form')
     } catch (e: unknown) {
       setOtpError(e instanceof Error ? e.message : 'Invalid OTP. Please try again.')
     } finally {
@@ -186,50 +174,183 @@ export function PredictionForm({
   }
 
   return (
-    <form
-      className="w-full rounded-xl border border-border bg-surface/95 p-4 text-left shadow-[0_20px_50px_rgba(17,24,39,0.10)] ring-1 ring-navy/5 backdrop-blur sm:p-6"
-      onSubmit={handleSubmit(submitForm)}
-      noValidate
-    >
-      <div className="mb-5 border-b border-border pb-5">
-        <div className="mb-4 flex items-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-navy/10 text-navy">
-            <WandSparkles aria-hidden size={18} />
-          </span>
-          <div>
-            <h2 className="text-xl font-extrabold leading-tight text-foreground sm:text-2xl">
-              Score &amp; Rank Calculator
-            </h2>
-            <p className="text-xs font-medium text-muted-foreground">
-              Choose your exam and paste the answer-key URL.
-            </p>
-          </div>
-        </div>
-        <div
-          className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1"
-          role="tablist"
-          aria-label="Exam type"
-        >
-          {examTabs.map(([tab, label]) => (
-            <button
-              key={tab}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab}
-              className={`rounded-md px-3 py-2 text-sm font-bold transition ${
-                activeTab === tab
-                  ? 'bg-navy text-white shadow-sm'
-                  : 'text-muted-foreground hover:bg-surface hover:text-foreground'
+    <div className="w-full rounded-xl border border-border bg-surface/95 text-left shadow-[0_20px_50px_rgba(17,24,39,0.10)] ring-1 ring-navy/5 backdrop-blur">
+      {/* Step indicator */}
+      <div className="flex items-center gap-0 border-b border-border">
+        {(['otp', 'form'] as const).map((s, idx) => {
+          const done = s === 'otp' && step === 'form'
+          const active = s === step
+          return (
+            <div
+              key={s}
+              className={`flex flex-1 items-center gap-2 px-4 py-3 text-xs font-bold transition ${
+                active ? 'text-navy' : done ? 'text-green-600' : 'text-muted-foreground'
               }`}
-              onClick={() => switchTab(tab)}
             >
-              {label}
-            </button>
-          ))}
-        </div>
+              <span
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold ${
+                  done
+                    ? 'bg-green-600 text-white'
+                    : active
+                      ? 'bg-navy text-white'
+                      : 'border border-border text-muted-foreground'
+                }`}
+              >
+                {done ? <CheckCircle2 size={12} /> : idx + 1}
+              </span>
+              {s === 'otp' ? 'Verify Mobile' : 'Check Rank'}
+            </div>
+          )
+        })}
       </div>
 
-      <>
+      {/* ── Step 1: OTP Verification ── */}
+      {step === 'otp' && (
+        <div className="p-4 sm:p-6">
+          <div className="mb-5">
+            <h2 className="text-xl font-extrabold leading-tight text-foreground sm:text-2xl">
+              Verify Your Mobile
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Enter your mobile number to receive your rank result via WhatsApp and save your result history.
+            </p>
+          </div>
+
+          <div className="grid gap-4">
+            <label className="grid gap-2" htmlFor="student-name">
+              <span className="text-sm font-semibold text-foreground">Your Name</span>
+              <Input
+                id="student-name"
+                type="text"
+                placeholder="Enter your full name"
+                value={studentNameInput}
+                onChange={(e) => setStudentNameInput(e.target.value)}
+                disabled={otpSent}
+              />
+            </label>
+
+            <label className="grid gap-2" htmlFor="otp-mobile">
+              <span className="text-sm font-semibold text-foreground">
+                Mobile Number <span className="text-red">*</span>
+              </span>
+              <div className="flex gap-2">
+                <Input
+                  id="otp-mobile"
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="10-digit mobile number"
+                  value={mobileInput}
+                  onChange={(e) => setMobileInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  disabled={otpSent}
+                  maxLength={10}
+                />
+                {!otpSent && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="shrink-0"
+                    disabled={otpSending || mobileInput.length < 10}
+                    onClick={handleSendOtp}
+                  >
+                    {otpSending ? <Loader2 className="animate-spin" size={16} /> : 'Send OTP'}
+                  </Button>
+                )}
+              </div>
+            </label>
+
+            {otpSent && (
+              <label className="grid gap-2" htmlFor="otp-code">
+                <span className="text-sm font-semibold text-foreground">
+                  OTP <span className="text-red">*</span>
+                </span>
+                <div className="flex gap-2">
+                  <Input
+                    id="otp-code"
+                    ref={otpInputRef}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Enter 6-digit OTP"
+                    value={otpInput}
+                    onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    maxLength={6}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="shrink-0"
+                    disabled={otpVerifying || otpInput.length < 6}
+                    onClick={handleVerifyOtp}
+                  >
+                    {otpVerifying ? <Loader2 className="animate-spin" size={16} /> : 'Verify'}
+                  </Button>
+                </div>
+                <button
+                  type="button"
+                  className="self-start text-xs text-navy underline underline-offset-2"
+                  onClick={() => { setOtpSent(false); setOtpInput(''); setOtpError(null) }}
+                >
+                  Change number
+                </button>
+              </label>
+            )}
+
+            {otpError && (
+              <p className="text-sm font-medium text-red" role="alert">{otpError}</p>
+            )}
+
+            {!otpSent && (
+              <p className="text-xs text-muted-foreground">
+                An OTP will be sent to your mobile via SMS. Standard rates apply.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Step 2: URL + Filters form ── */}
+      {step === 'form' && (
+        <form className="p-4 sm:p-6" onSubmit={handleSubmit(submitForm)} noValidate>
+          {/* Verified badge */}
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-extrabold leading-tight text-foreground sm:text-2xl">
+                Score &amp; Rank Calculator
+              </h2>
+              <p className="text-xs font-medium text-muted-foreground">
+                Choose your exam and paste the answer-key URL.
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1.5 text-xs font-bold text-green-700">
+              <CheckCircle2 size={13} aria-hidden />
+              {verifiedMobile}
+            </div>
+          </div>
+
+          <div className="mb-5 border-b border-border pb-5">
+            <div
+              className="grid grid-cols-2 gap-1 rounded-lg border border-border bg-muted p-1"
+              role="tablist"
+              aria-label="Exam type"
+            >
+              {examTabs.map(([tab, label]) => (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab}
+                  className={`rounded-md px-3 py-2 text-sm font-bold transition ${
+                    activeTab === tab
+                      ? 'bg-navy text-white shadow-sm'
+                      : 'text-muted-foreground hover:bg-surface hover:text-foreground'
+                  }`}
+                  onClick={() => switchTab(tab)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid gap-4">
             <label className="grid gap-2" htmlFor="response-sheet-url">
               <span className="text-sm font-semibold text-foreground">
@@ -240,180 +361,45 @@ export function PredictionForm({
                 type="url"
                 inputMode="url"
                 autoComplete="url"
-                placeholder={activeTab === 'ssc' ? 'https://sscexams.cbexams.com/...aspx?enckey=...' : 'https://rrb.digialm.com/....html'}
-                aria-invalid={Boolean(fieldError)}
-                aria-describedby={
-                  fieldError || errorMessage
-                    ? 'prediction-form-message'
-                    : undefined
+                placeholder={
+                  activeTab === 'ssc'
+                    ? 'https://sscexams.cbexams.com/...aspx?enckey=...'
+                    : 'https://rrb.digialm.com/....html'
                 }
+                aria-invalid={Boolean(fieldError)}
+                aria-describedby={fieldError || errorMessage ? 'prediction-form-message' : undefined}
                 {...register('responseSheetUrl')}
               />
             </label>
 
             <div className="grid gap-4 md:grid-cols-3">
               <label className="grid gap-2" htmlFor="category">
-                <span className="text-sm font-semibold text-foreground">
-                  Category
-                </span>
-                <Select
-                  id="category"
-                  aria-invalid={Boolean(errors.category)}
-                  {...register('category')}
-                >
+                <span className="text-sm font-semibold text-foreground">Category</span>
+                <Select id="category" {...register('category')}>
                   <option value="">Choose</option>
                   {categoryOptions.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
+                    <option key={value} value={value}>{label}</option>
                   ))}
                 </Select>
               </label>
 
               <label className="grid gap-2" htmlFor="gender">
-                <span className="text-sm font-semibold text-foreground">
-                  Gender
-                </span>
+                <span className="text-sm font-semibold text-foreground">Gender</span>
                 <Select id="gender" {...register('gender')}>
                   {genderOptions.map(([value, label]) => (
-                    <option key={label} value={value}>
-                      {label}
-                    </option>
+                    <option key={label} value={value}>{label}</option>
                   ))}
                 </Select>
               </label>
 
               <label className="grid gap-2" htmlFor="state">
-                <span className="text-sm font-semibold text-foreground">
-                  State
-                </span>
+                <span className="text-sm font-semibold text-foreground">State</span>
                 <Select id="state" {...register('state')}>
                   {stateOptions.map(([value, label]) => (
-                    <option key={label} value={value}>
-                      {label}
-                    </option>
+                    <option key={label} value={value}>{label}</option>
                   ))}
                 </Select>
               </label>
-            </div>
-
-            {/* Optional WhatsApp notification via OTP */}
-            <div className="rounded-lg border border-border bg-muted/40">
-              <button
-                type="button"
-                className="flex w-full items-center justify-between px-4 py-3 text-left"
-                onClick={() => setShowOtpSection((v) => !v)}
-                aria-expanded={showOtpSection}
-              >
-                <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <MessageCircle size={15} aria-hidden className="text-green-600" />
-                  Get result on WhatsApp
-                  <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-green-700">
-                    Optional
-                  </span>
-                </span>
-                {verifiedMobile ? (
-                  <span className="flex items-center gap-1 text-xs font-semibold text-green-600">
-                    <CheckCircle2 size={13} aria-hidden />
-                    Verified
-                  </span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">{showOtpSection ? '▲' : '▼'}</span>
-                )}
-              </button>
-
-              {showOtpSection && !verifiedMobile && (
-                <div className="border-t border-border px-4 pb-4 pt-3">
-                  <p className="mb-3 text-xs text-muted-foreground">
-                    Enter your mobile number to receive your result via WhatsApp. We'll send a one-time password to verify.
-                  </p>
-                  <div className="grid gap-3">
-                    <div className="grid gap-2">
-                      <label htmlFor="student-name" className="text-xs font-semibold text-foreground">
-                        Your Name
-                      </label>
-                      <Input
-                        id="student-name"
-                        type="text"
-                        placeholder="Enter your name"
-                        value={studentNameInput}
-                        onChange={(e) => setStudentNameInput(e.target.value)}
-                        disabled={otpSent}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <label htmlFor="otp-mobile" className="text-xs font-semibold text-foreground">
-                        Mobile Number <span className="text-red">*</span>
-                      </label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="otp-mobile"
-                          type="tel"
-                          inputMode="numeric"
-                          placeholder="10-digit mobile number"
-                          value={mobileInput}
-                          onChange={(e) => setMobileInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                          disabled={otpSent}
-                          maxLength={10}
-                        />
-                        {!otpSent && (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            className="shrink-0"
-                            disabled={otpSending || mobileInput.length < 10}
-                            onClick={handleSendOtp}
-                          >
-                            {otpSending ? <Loader2 className="animate-spin" size={14} /> : 'Send OTP'}
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {otpSent && (
-                      <div className="grid gap-2">
-                        <label htmlFor="otp-code" className="text-xs font-semibold text-foreground">
-                          Enter OTP
-                        </label>
-                        <div className="flex gap-2">
-                          <Input
-                            id="otp-code"
-                            ref={otpInputRef}
-                            type="text"
-                            inputMode="numeric"
-                            placeholder="6-digit OTP"
-                            value={otpInput}
-                            onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            maxLength={6}
-                          />
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            className="shrink-0"
-                            disabled={otpVerifying || otpInput.length < 6}
-                            onClick={handleVerifyOtp}
-                          >
-                            {otpVerifying ? <Loader2 className="animate-spin" size={14} /> : 'Verify'}
-                          </Button>
-                        </div>
-                        <button
-                          type="button"
-                          className="self-start text-xs text-navy underline underline-offset-2"
-                          onClick={() => { setOtpSent(false); setOtpInput(''); setOtpError(null) }}
-                        >
-                          Change number
-                        </button>
-                      </div>
-                    )}
-
-                    {otpError && (
-                      <p className="text-xs font-medium text-red" role="alert">{otpError}</p>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
 
             <Button
@@ -429,6 +415,7 @@ export function PredictionForm({
               )}
               {isSubmitting ? 'Calculating…' : 'Check Your Rank & Score'}
             </Button>
+
             {isSubmitting && (
               <div
                 className="rounded-lg border border-navy/15 bg-navy/[0.04] p-4"
@@ -443,11 +430,7 @@ export function PredictionForm({
                   <div className="animate-indeterminate absolute inset-y-0 w-1/3 rounded-full bg-navy" />
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2">
-                  {[
-                    'Reading answer key',
-                    'Calculating marks',
-                    'Predicting rank',
-                  ].map((step, index) => (
+                  {['Reading answer key', 'Calculating marks', 'Predicting rank'].map((step, index) => (
                     <div
                       key={step}
                       className="animate-step-pulse flex items-center gap-1.5 text-[11px] font-semibold text-navy"
@@ -461,6 +444,7 @@ export function PredictionForm({
               </div>
             )}
           </div>
+
           {(fieldError || errorMessage) && (
             <p
               id="prediction-form-message"
@@ -470,7 +454,8 @@ export function PredictionForm({
               {fieldError ?? errorMessage}
             </p>
           )}
-      </>
-    </form>
+        </form>
+      )}
+    </div>
   )
 }
