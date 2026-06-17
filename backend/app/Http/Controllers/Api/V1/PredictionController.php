@@ -242,6 +242,7 @@ class PredictionController extends Controller
                 'exam' => $run->exam?->name,
                 'score' => (float) $run->score,
                 'overall_rank' => $run->overall_rank,
+                'category_rank' => $run->category_rank,
                 'category' => $run->category,
                 'state' => $run->state,
                 'prediction_id' => $run->id,

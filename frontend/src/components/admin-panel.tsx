@@ -1043,6 +1043,7 @@ export function AdminPanel() {
                   <li><span className="text-navy">exam</span> — exam name</li>
                   <li><span className="text-navy">score</span> — total score</li>
                   <li><span className="text-navy">overall_rank</span> — rank among all students</li>
+                  <li><span className="text-navy">category_rank</span> — rank within chosen category</li>
                   <li><span className="text-navy">category</span> — chosen category</li>
                   <li><span className="text-navy">state</span> — chosen state</li>
                   <li><span className="text-navy">prediction_id</span> — unique run ID</li>
