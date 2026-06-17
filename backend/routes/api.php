@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AdminAuthController;
+use App\Http\Controllers\Api\V1\StudentController;
 use App\Http\Controllers\Api\V1\AdminPredictionController;
 use App\Http\Controllers\Api\V1\AdminScoringRuleController;
 use App\Http\Controllers\Api\V1\AdminSettingsController;
@@ -29,6 +30,8 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:5,1');
     Route::post('/otp/verify', [OtpController::class, 'verify'])
         ->middleware('throttle:10,1');
+    Route::post('/student/results', [StudentController::class, 'results'])
+        ->middleware('throttle:30,1');
 
     Route::post('/admin/login', [AdminAuthController::class, 'login'])
         ->middleware('throttle:10,1');
