@@ -77,13 +77,17 @@ class ResponseSheetIngestionService
             return $pages;
         }
 
-        // Resolve form action URL (relative → absolute)
+        // Resolve form action URL (relative → absolute), preserving EncKey query string
         preg_match('/<form[^>]+action="([^"]+)"/i', $partAHtml, $fa);
         $formAction = $this->resolveUrl($url, $fa[1] ?? '');
 
+        // Extract actual submit button values from Part A HTML (avoid hardcoding)
+        $buttonValues = $this->extractPartButtonValues($partAHtml);
+
         // POST for Parts B, C, D using Part A's viewstate
         foreach (['P2' => 'B', 'P3' => 'C', 'P4' => 'D'] as $param => $partLetter) {
-            $fields = array_merge($formState, [$param => "Click Here for PART-$partLetter"]);
+            $buttonValue = $buttonValues[$param] ?? "Click Here for PART-$partLetter";
+            $fields = array_merge($formState, [$param => $buttonValue]);
 
             try {
                 $response = $this->cbexamsHttpClient()
@@ -124,7 +128,11 @@ class ResponseSheetIngestionService
     }
 
     /**
-     * Resolve a relative URL against a base URL.
+     * Resolve a relative URL against a base URL, preserving the base query string.
+     *
+     * ASP.NET WebForms form actions are often just the filename without query params
+     * (e.g. "ViewCandResponse4.aspx"), which drops the EncKey from the URL.
+     * We inherit the base query string when the resolved URL has none.
      */
     private function resolveUrl(string $base, string $relative): string
     {
@@ -136,8 +144,43 @@ class ResponseSheetIngestionService
         $scheme = ($parsed['scheme'] ?? 'https') . '://';
         $host = $parsed['host'] ?? '';
         $dir = rtrim(dirname($parsed['path'] ?? '/'), '/') . '/';
+        $resolved = $scheme . $host . $dir . ltrim($relative, './');
 
-        return $scheme . $host . $dir . ltrim($relative, './');
+        // Inherit query string from base URL when form action omits it (e.g. EncKey param)
+        if (! str_contains($resolved, '?') && isset($parsed['query']) && $parsed['query'] !== '') {
+            $resolved .= '?' . $parsed['query'];
+        }
+
+        return $resolved;
+    }
+
+    /**
+     * Extract submit button names and values for Part B/C/D navigation from Part A HTML.
+     *
+     * @return array<string, string>  e.g. ['P2' => 'Click Here for PART-B', ...]
+     */
+    private function extractPartButtonValues(string $html): array
+    {
+        $values = [];
+
+        // Match <input type="submit" name="P2" value="..."> in any attribute order
+        preg_match_all(
+            '/<input[^>]+type=["\']submit["\'][^>]*>/i',
+            $html,
+            $inputs,
+        );
+
+        foreach ($inputs[0] as $input) {
+            if (preg_match('/name=["\']([^"\']+)["\']/', $input, $nameMatch)
+                && preg_match('/value=["\']([^"\']+)["\']/', $input, $valueMatch)) {
+                $name = $nameMatch[1];
+                if (preg_match('/^P[2-4]$/', $name)) {
+                    $values[$name] = html_entity_decode($valueMatch[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                }
+            }
+        }
+
+        return $values;
     }
 
     private function downloadHtml(string $url): Response
@@ -190,6 +233,7 @@ class ResponseSheetIngestionService
     {
         return Http::timeout(20)
             ->connectTimeout(8)
+            ->retry(3, 500)
             ->withoutVerifying()
             ->withUserAgent('MuppadaiRankPredictor/1.0')
             ->accept('text/html');

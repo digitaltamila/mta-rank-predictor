@@ -89,9 +89,8 @@ class CbexamsResponseSheetParser implements ResponseSheetParser
     }
 
     /**
-     * Extract section name from <span id="lblsubject">.
-     * Strips the "PART-X (" prefix and ")" suffix.
-     * "PART-A (General Intelligence and Reasoning)" → "General Intelligence and Reasoning"
+     * Extract section name from <span id="lblsubject">, keeping the part prefix.
+     * "PART-A (General Intelligence and Reasoning)" → "Part A - General Intelligence and Reasoning"
      */
     private function extractPageSectionName(DOMXPath $xpath): ?string
     {
@@ -102,9 +101,9 @@ class CbexamsResponseSheetParser implements ResponseSheetParser
 
         $raw = $this->normalizeText($node->textContent);
 
-        // "PART-A (General Intelligence and Reasoning)" → "General Intelligence and Reasoning"
-        if (preg_match('/PART-[A-D]\s*\((.+)\)\s*$/i', $raw, $m)) {
-            return trim($m[1]);
+        // "PART-A (General Intelligence and Reasoning)" → "Part A - General Intelligence and Reasoning"
+        if (preg_match('/PART-([A-D])\s*\((.+)\)\s*$/i', $raw, $m)) {
+            return 'Part ' . strtoupper($m[1]) . ' - ' . trim($m[2]);
         }
 
         return $raw !== '' ? $raw : null;
