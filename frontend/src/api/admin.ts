@@ -187,6 +187,34 @@ export const updateAdminSettings = (token: string, settings: Partial<AdminSettin
 export const fetchAdminScoringRules = (token: string) =>
   adminRequest<{ data: AdminScoringRule[] }>('/v1/admin/scoring-rules', token)
 
+export const resetParserCache = (token: string) =>
+  adminRequest<{ message: string; reset: number }>('/v1/admin/response-sheets/reset-cache', token, {
+    method: 'POST',
+  })
+
+export async function downloadDatabaseBackup(token: string): Promise<void> {
+  const response = await fetch(`${apiBaseUrl}/v1/admin/backup/download`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}))
+    throw new ApiError(
+      (payload as { message?: string }).message ?? 'Backup download failed.',
+      response.status,
+      payload,
+    )
+  }
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `muppadai-backup-${new Date().toISOString().slice(0, 10)}.sqlite`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 export const updateAdminScoringRule = (
   token: string,
   id: number,

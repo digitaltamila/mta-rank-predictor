@@ -18,12 +18,14 @@ import {
   adminLogin,
   adminLogout,
   deleteAdminPredictions,
+  downloadDatabaseBackup,
   fetchAdminFeedback,
   fetchAdminPrediction,
   fetchAdminPredictions,
   fetchAdminScoringRules,
   fetchAdminSettings,
   pruneDuplicatePredictions,
+  resetParserCache,
   updateAdminFeedbackStatus,
   updateAdminScoringRule,
   updateAdminSettings,
@@ -107,6 +109,10 @@ export function AdminPanel() {
   const [settings, setSettings] = useState<AdminSettings>({ pabbly_webhook_url: null })
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsStatus, setSettingsStatus] = useState<string | null>(null)
+  const [cacheResetting, setCacheResetting] = useState(false)
+  const [cacheResetStatus, setCacheResetStatus] = useState<string | null>(null)
+  const [backupDownloading, setBackupDownloading] = useState(false)
+  const [backupStatus, setBackupStatus] = useState<string | null>(null)
   const [editingRule, setEditingRule] = useState<{
     id: number
     correctMarks: string
@@ -296,6 +302,33 @@ export function AdminPanel() {
       setSettingsStatus(exception instanceof ApiError ? exception.message : 'Save failed.')
     } finally {
       setSettingsSaving(false)
+    }
+  }
+
+  const handleResetCache = async () => {
+    if (!window.confirm('This will mark all cached response sheets for re-parsing. No data will be deleted. Proceed?')) return
+    setCacheResetting(true)
+    setCacheResetStatus(null)
+    try {
+      const result = await resetParserCache(token)
+      setCacheResetStatus(result.message)
+    } catch (exception) {
+      setCacheResetStatus(exception instanceof ApiError ? exception.message : 'Reset failed.')
+    } finally {
+      setCacheResetting(false)
+    }
+  }
+
+  const handleDownloadBackup = async () => {
+    setBackupDownloading(true)
+    setBackupStatus(null)
+    try {
+      await downloadDatabaseBackup(token)
+      setBackupStatus('Backup downloaded successfully.')
+    } catch (exception) {
+      setBackupStatus(exception instanceof ApiError ? exception.message : 'Download failed.')
+    } finally {
+      setBackupDownloading(false)
     }
   }
 
@@ -1014,6 +1047,51 @@ export function AdminPanel() {
                   <li><span className="text-navy">state</span> — chosen state</li>
                   <li><span className="text-navy">prediction_id</span> — unique run ID</li>
                 </ul>
+              </div>
+
+              {/* Parser Cache Reset */}
+              <div className="border-t border-border pt-5">
+                <h3 className="text-base font-extrabold text-foreground">Parser Cache</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Force all response sheets to be re-fetched and re-parsed on the next submission.
+                  This is safe — it only marks sheets for re-parsing, it does <strong>not</strong> delete any prediction records.
+                </p>
+                <div className="mt-3 flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void handleResetCache()}
+                    disabled={cacheResetting}
+                  >
+                    {cacheResetting ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
+                    Reset Parser Cache
+                  </Button>
+                  {cacheResetStatus && (
+                    <p className="text-sm font-medium text-muted-foreground">{cacheResetStatus}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Database Backup */}
+              <div className="border-t border-border pt-5">
+                <h3 className="text-base font-extrabold text-foreground">Database Backup</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Download a full copy of the SQLite database. The server also saves a backup automatically every day at 2 AM (keeps last 7).
+                </p>
+                <div className="mt-3 flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void handleDownloadBackup()}
+                    disabled={backupDownloading}
+                  >
+                    {backupDownloading ? <Loader2 className="animate-spin" size={16} /> : <Download size={16} />}
+                    Download Backup
+                  </Button>
+                  {backupStatus && (
+                    <p className="text-sm font-medium text-muted-foreground">{backupStatus}</p>
+                  )}
+                </div>
               </div>
             </div>
           </Card>

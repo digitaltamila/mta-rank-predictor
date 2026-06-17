@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AdminAuthController;
+use App\Http\Controllers\Api\V1\AdminResponseSheetController;
 use App\Http\Controllers\Api\V1\StudentController;
 use App\Http\Controllers\Api\V1\AdminPredictionController;
 use App\Http\Controllers\Api\V1\AdminScoringRuleController;
@@ -48,4 +49,6 @@ Route::prefix('v1')->group(function () {
     Route::patch('/admin/scoring-rules/{scoringRule}', [AdminScoringRuleController::class, 'update']);
     Route::get('/admin/settings', [AdminSettingsController::class, 'index']);
     Route::patch('/admin/settings', [AdminSettingsController::class, 'update']);
+    Route::post('/admin/response-sheets/reset-cache', [AdminResponseSheetController::class, 'resetCache']);
+    Route::get('/admin/backup/download', [AdminResponseSheetController::class, 'downloadBackup']);
 });
