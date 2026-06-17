@@ -242,9 +242,9 @@ class PredictionController extends Controller
                 'exam' => $run->exam?->name,
                 'score' => (float) $run->score,
                 'overall_rank' => $run->overall_rank,
-                'category_rank' => $run->category_rank,
-                'category' => $run->category,
-                'state' => $run->state,
+                'category_rank' => $run->category_rank ?? 'Not Selected',
+                'category' => $run->category ?? 'Not Selected',
+                'state' => $run->state ?? 'Not Selected',
                 'prediction_id' => $run->id,
             ]);
         } catch (\Throwable $e) {
