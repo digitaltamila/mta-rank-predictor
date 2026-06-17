@@ -128,7 +128,7 @@ export function PredictionForm({ isSubmitting, errorMessage, onSubmit }: Predict
   // Two states: 'form' = URL entry, 'verify' = mobile OTP step
   const [uiState, setUiState] = useState<'form' | 'verify'>('form')
   const [pendingValues, setPendingValues] = useState<PredictionFormValues | null>(null)
-  const [savedProfile] = useState<SavedProfile | null>(getSavedProfile)
+  const [savedProfile, setSavedProfile] = useState<SavedProfile | null>(getSavedProfile)
 
   // OTP state
   const [mobileInput, setMobileInput] = useState('')
@@ -211,6 +211,7 @@ export function PredictionForm({ isSubmitting, errorMessage, onSubmit }: Predict
         sessionToken: result.session_token,
       }
       saveProfile(profile)
+      setSavedProfile(profile)
       setUiState('form')
       onSubmit({
         ...pendingValues!,
@@ -244,6 +245,13 @@ export function PredictionForm({ isSubmitting, errorMessage, onSubmit }: Predict
                   <p className="flex items-center gap-1.5 text-xs font-semibold text-green-600">
                     <CheckCircle2 size={12} aria-hidden />
                     Logged in as {savedProfile.name ?? savedProfile.mobile}
+                    <button
+                      type="button"
+                      onClick={() => { clearProfile(); setSavedProfile(null) }}
+                      className="ml-1 text-[11px] font-semibold text-muted-foreground underline underline-offset-2 hover:text-red"
+                    >
+                      Logout
+                    </button>
                   </p>
                 ) : (
                   <p className="text-xs font-medium text-muted-foreground">
