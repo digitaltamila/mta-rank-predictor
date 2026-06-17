@@ -211,6 +211,7 @@ export function PredictionForm({ isSubmitting, errorMessage, onSubmit }: Predict
         sessionToken: result.session_token,
       }
       saveProfile(profile)
+      setUiState('form')
       onSubmit({
         ...pendingValues!,
         mobile: result.mobile,
