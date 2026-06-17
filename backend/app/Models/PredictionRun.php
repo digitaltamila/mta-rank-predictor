@@ -20,6 +20,7 @@ class PredictionRun extends Model
         'id',
         'response_sheet_id',
         'exam_id',
+        'student_contact_id',
         'category',
         'state',
         'gender',
@@ -66,5 +67,10 @@ class PredictionRun extends Model
     public function exam(): BelongsTo
     {
         return $this->belongsTo(Exam::class);
+    }
+
+    public function studentContact(): BelongsTo
+    {
+        return $this->belongsTo(StudentContact::class);
     }
 }

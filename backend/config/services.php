@@ -39,4 +39,8 @@ return [
         'allow_insecure_ssl_fallback' => env('DIGIALM_ALLOW_INSECURE_SSL_FALLBACK', true),
     ],
 
+    'fast2sms' => [
+        'api_key' => env('FAST2SMS_API_KEY'),
+    ],
+
 ];

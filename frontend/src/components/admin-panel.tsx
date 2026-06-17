@@ -1,5 +1,6 @@
 import { type FormEvent, useMemo, useState } from 'react'
 import {
+  ChevronLeft,
   ChevronRight,
   Download,
   FileText,
@@ -12,7 +13,6 @@ import {
   Settings,
   ShieldCheck,
   Trash2,
-  Upload,
 } from 'lucide-react'
 import {
   adminLogin,
@@ -22,13 +22,17 @@ import {
   fetchAdminPrediction,
   fetchAdminPredictions,
   fetchAdminScoringRules,
+  fetchAdminSettings,
   pruneDuplicatePredictions,
   updateAdminFeedbackStatus,
   updateAdminScoringRule,
+  updateAdminSettings,
   type AdminFeedback,
+  type AdminPaginationMeta,
   type AdminPredictionDetail,
   type AdminPredictionSummary,
   type AdminScoringRule,
+  type AdminSettings,
   type AdminUser,
 } from '../api/admin'
 import { ApiError } from '../api/http'
@@ -48,7 +52,7 @@ const categoryOptions = ['UR', 'OBC', 'SC', 'ST', 'EWS']
 
 function exportToCsv(records: AdminPredictionSummary[]) {
   const headers = [
-    'Name', 'Roll Number', 'Exam', 'Category', 'State', 'Gender',
+    'Name', 'Roll Number', 'Mobile', 'Exam', 'Category', 'State', 'Gender',
     'Score', 'Correct', 'Wrong', 'Unanswered',
     'Overall Rank', 'Category Rank', 'State Rank',
     'Response Sheet URL', 'Submitted At',
@@ -64,7 +68,7 @@ function exportToCsv(records: AdminPredictionSummary[]) {
 
   const rows = records.map((r) =>
     [
-      r.candidateName, r.rollNumber, r.examName,
+      r.candidateName, r.rollNumber, r.mobile, r.examName,
       r.category, r.state, r.gender,
       r.score, r.correctAnswers, r.wrongAnswers, r.unansweredQuestions,
       r.overallRank, r.categoryRank, r.stateRank,
@@ -92,12 +96,17 @@ export function AdminPanel() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [records, setRecords] = useState<AdminPredictionSummary[]>([])
+  const [paginationMeta, setPaginationMeta] = useState<AdminPaginationMeta | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
   const [feedback, setFeedback] = useState<AdminFeedback[]>([])
   const [selectedRecord, setSelectedRecord] = useState<AdminPredictionDetail | null>(null)
-  const [activeTab, setActiveTab] = useState<'records' | 'feedback' | 'marks'>('records')
+  const [activeTab, setActiveTab] = useState<'records' | 'feedback' | 'marks' | 'settings'>('records')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [scoringRules, setScoringRules] = useState<AdminScoringRule[]>([])
+  const [settings, setSettings] = useState<AdminSettings>({ pabbly_webhook_url: null })
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsStatus, setSettingsStatus] = useState<string | null>(null)
   const [editingRule, setEditingRule] = useState<{
     id: number
     correctMarks: string
@@ -136,7 +145,8 @@ export function AdminPanel() {
       if (search) {
         const name = r.candidateName?.toLowerCase() ?? ''
         const roll = r.rollNumber?.toLowerCase() ?? ''
-        if (!name.includes(search) && !roll.includes(search)) return false
+        const mobile = r.mobile?.toLowerCase() ?? ''
+        if (!name.includes(search) && !roll.includes(search) && !mobile.includes(search)) return false
       }
       return true
     })
@@ -157,27 +167,31 @@ export function AdminPanel() {
 
   const stats = useMemo(
     () => ({
-      total: records.length,
+      total: paginationMeta?.total ?? records.length,
       sscGd: records.filter((r) => r.examName?.toLowerCase().includes('ssc')).length,
       rrb: records.filter((r) => r.examName?.toLowerCase().includes('rrb')).length,
       openFeedback: feedback.filter((item) => item.status !== 'resolved').length,
     }),
-    [feedback, records],
+    [feedback, records, paginationMeta],
   )
 
-  const loadAdminData = async (authToken = token) => {
+  const loadAdminData = async (authToken = token, page = currentPage) => {
     if (!authToken) return
     setIsLoading(true)
     setError(null)
     try {
-      const [recordResponse, feedbackResponse, rulesResponse] = await Promise.all([
-        fetchAdminPredictions(authToken),
+      const [recordResponse, feedbackResponse, rulesResponse, settingsResponse] = await Promise.all([
+        fetchAdminPredictions(authToken, page),
         fetchAdminFeedback(authToken),
         fetchAdminScoringRules(authToken),
+        fetchAdminSettings(authToken),
       ])
       setRecords(recordResponse.data)
+      setPaginationMeta(recordResponse.meta)
+      setCurrentPage(recordResponse.meta.current_page)
       setFeedback(feedbackResponse.data)
       setScoringRules(rulesResponse.data)
+      setSettings(settingsResponse.data)
     } catch (exception) {
       setError(
         exception instanceof ApiError ? exception.message : 'Admin data could not be loaded.',
@@ -185,6 +199,12 @@ export function AdminPanel() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const goToPage = async (page: number) => {
+    if (!paginationMeta || page < 1 || page > paginationMeta.last_page) return
+    setCurrentPage(page)
+    await loadAdminData(token, page)
   }
 
   const handlePruneDuplicates = async () => {
@@ -196,7 +216,7 @@ export function AdminPanel() {
           ? 'No duplicates found.'
           : `Removed ${result.deleted} duplicate record(s).`,
       )
-      if (result.deleted > 0) await loadAdminData()
+      if (result.deleted > 0) await loadAdminData(token, 1)
     } catch (exception) {
       setPruneStatus(
         exception instanceof ApiError ? exception.message : 'Cleanup failed.',
@@ -213,7 +233,7 @@ export function AdminPanel() {
       const result = await deleteAdminPredictions(token, ids)
       setSelectedIds(new Set())
       if (selectedRecord && ids.includes(selectedRecord.id)) setSelectedRecord(null)
-      await loadAdminData()
+      await loadAdminData(token, 1)
       setError(null)
       setPruneStatus(`Deleted ${result.deleted} record(s).`)
     } catch (exception) {
@@ -266,6 +286,19 @@ export function AdminPanel() {
     }
   }
 
+  const handleSaveSettings = async () => {
+    setSettingsSaving(true)
+    setSettingsStatus(null)
+    try {
+      await updateAdminSettings(token, { pabbly_webhook_url: settings.pabbly_webhook_url || null })
+      setSettingsStatus('Settings saved.')
+    } catch (exception) {
+      setSettingsStatus(exception instanceof ApiError ? exception.message : 'Save failed.')
+    } finally {
+      setSettingsSaving(false)
+    }
+  }
+
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setIsLoading(true)
@@ -275,7 +308,7 @@ export function AdminPanel() {
       localStorage.setItem(tokenKey, response.token)
       setToken(response.token)
       setUser(response.user)
-      await loadAdminData(response.token)
+      await loadAdminData(response.token, 1)
     } catch (exception) {
       setError(exception instanceof ApiError ? exception.message : 'Admin login failed.')
     } finally {
@@ -480,31 +513,25 @@ export function AdminPanel() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant={activeTab === 'records' ? 'primary' : 'secondary'}
-            onClick={() => setActiveTab('records')}
-          >
-            <FileText aria-hidden size={17} />
-            Records
-          </Button>
-          <Button
-            type="button"
-            variant={activeTab === 'feedback' ? 'primary' : 'secondary'}
-            onClick={() => setActiveTab('feedback')}
-          >
-            <Inbox aria-hidden size={17} />
-            Feedback
-          </Button>
-          <Button
-            type="button"
-            variant={activeTab === 'marks' ? 'primary' : 'secondary'}
-            onClick={() => setActiveTab('marks')}
-          >
-            <Settings aria-hidden size={17} />
-            Marks
-          </Button>
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              { id: 'records', label: 'Records', icon: FileText },
+              { id: 'feedback', label: 'Feedback', icon: Inbox },
+              { id: 'marks', label: 'Marks', icon: Settings },
+              { id: 'settings', label: 'Settings', icon: Settings },
+            ] as const
+          ).map(({ id, label, icon: Icon }) => (
+            <Button
+              key={id}
+              type="button"
+              variant={activeTab === id ? 'primary' : 'secondary'}
+              onClick={() => setActiveTab(id)}
+            >
+              <Icon aria-hidden size={17} />
+              {label}
+            </Button>
+          ))}
         </div>
 
         {error && <p className="text-sm font-semibold text-red">{error}</p>}
@@ -519,7 +546,7 @@ export function AdminPanel() {
                   Search
                   <Input
                     type="search"
-                    placeholder="Name or roll number…"
+                    placeholder="Name, roll number or mobile…"
                     value={filterSearch}
                     onChange={(e) => setFilterSearch(e.target.value)}
                   />
@@ -605,8 +632,8 @@ export function AdminPanel() {
             <div className="flex items-center justify-between px-1">
               <p className="text-sm font-semibold text-muted-foreground">
                 {filteredRecords.length === records.length
-                  ? `${records.length} record${records.length !== 1 ? 's' : ''}`
-                  : `${filteredRecords.length} of ${records.length} records`}
+                  ? `${records.length} of ${paginationMeta?.total ?? records.length} records (page ${currentPage})`
+                  : `${filteredRecords.length} of ${records.length} records (filtered)`}
               </p>
             </div>
 
@@ -664,6 +691,12 @@ export function AdminPanel() {
                           <span className="text-sm text-muted-foreground">
                             {record.rollNumber ?? '--'} · {record.examName ?? '--'}
                           </span>
+                          {record.mobile && (
+                            <span className="mt-0.5 block text-xs font-semibold text-navy">
+                              {record.mobile}
+                              {record.studentName ? ` · ${record.studentName}` : ''}
+                            </span>
+                          )}
                         </span>
                         <span className="hidden text-sm text-foreground md:block">
                           {record.category ?? '--'} / {record.state ?? '--'}
@@ -694,9 +727,7 @@ export function AdminPanel() {
                           <Link2 aria-hidden size={15} />
                         </a>
                       ) : (
-                        <span className="flex h-8 w-8 items-center justify-center text-muted-foreground">
-                          <Upload aria-hidden size={15} />
-                        </span>
+                        <span className="h-8 w-8" />
                       )}
 
                       <ChevronRight
@@ -715,6 +746,58 @@ export function AdminPanel() {
                 )}
               </div>
             </Card>
+
+            {/* Pagination */}
+            {paginationMeta && paginationMeta.last_page > 1 && (
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1 || isLoading}
+                  onClick={() => void goToPage(currentPage - 1)}
+                  className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-muted-foreground transition hover:bg-muted disabled:opacity-40"
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+
+                {Array.from({ length: paginationMeta.last_page }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === paginationMeta.last_page || Math.abs(p - currentPage) <= 2)
+                  .reduce<(number | 'ellipsis')[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && p - (arr[idx - 1] as number) > 1) acc.push('ellipsis')
+                    acc.push(p)
+                    return acc
+                  }, [])
+                  .map((item, idx) =>
+                    item === 'ellipsis' ? (
+                      <span key={`e${idx}`} className="px-1 text-muted-foreground">…</span>
+                    ) : (
+                      <button
+                        key={item}
+                        type="button"
+                        disabled={isLoading}
+                        onClick={() => void goToPage(item as number)}
+                        className={`flex h-9 min-w-[36px] items-center justify-center rounded-md border px-3 text-sm font-bold transition ${
+                          currentPage === item
+                            ? 'border-navy bg-navy text-white'
+                            : 'border-border bg-surface text-foreground hover:bg-muted'
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    ),
+                  )}
+
+                <button
+                  type="button"
+                  disabled={currentPage >= paginationMeta.last_page || isLoading}
+                  onClick={() => void goToPage(currentPage + 1)}
+                  className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-surface text-muted-foreground transition hover:bg-muted disabled:opacity-40"
+                  aria-label="Next page"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -876,6 +959,66 @@ export function AdminPanel() {
           </Card>
         )}
 
+        {/* ── Settings tab ── */}
+        {activeTab === 'settings' && (
+          <Card className="p-5">
+            <div className="mb-5 border-b border-border pb-4">
+              <h2 className="text-lg font-extrabold text-foreground">Settings</h2>
+              <p className="text-sm text-muted-foreground">
+                Configure webhook and notification integrations.
+              </p>
+            </div>
+            <div className="grid max-w-xl gap-5">
+              <div className="grid gap-2">
+                <label htmlFor="pabbly-webhook" className="text-sm font-semibold text-foreground">
+                  Pabbly Connect Webhook URL
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  When a student submits their result with a verified mobile number, this webhook is
+                  triggered with their details — name, mobile, exam, score, and rank. Use this to
+                  send a WhatsApp notification via Pabbly Connect.
+                </p>
+                <Input
+                  id="pabbly-webhook"
+                  type="url"
+                  placeholder="https://connect.pabbly.com/workflow/sendwebhookdata/..."
+                  value={settings.pabbly_webhook_url ?? ''}
+                  onChange={(e) =>
+                    setSettings((prev) => ({ ...prev, pabbly_webhook_url: e.target.value || null }))
+                  }
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  onClick={() => void handleSaveSettings()}
+                  disabled={settingsSaving}
+                >
+                  {settingsSaving ? <Loader2 className="animate-spin" size={16} /> : null}
+                  Save Settings
+                </Button>
+                {settingsStatus && (
+                  <p className="text-sm font-medium text-muted-foreground">{settingsStatus}</p>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm">
+                <p className="font-semibold text-foreground">Webhook payload fields</p>
+                <ul className="mt-2 grid gap-1 font-mono text-xs text-muted-foreground">
+                  <li><span className="text-navy">mobile</span> — verified mobile number</li>
+                  <li><span className="text-navy">name</span> — student name (if entered)</li>
+                  <li><span className="text-navy">exam</span> — exam name</li>
+                  <li><span className="text-navy">score</span> — total score</li>
+                  <li><span className="text-navy">overall_rank</span> — rank among all students</li>
+                  <li><span className="text-navy">category</span> — chosen category</li>
+                  <li><span className="text-navy">state</span> — chosen state</li>
+                  <li><span className="text-navy">prediction_id</span> — unique run ID</li>
+                </ul>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* ── Record detail ── */}
         {selectedRecord && (
           <Card className="p-5">
@@ -885,6 +1028,12 @@ export function AdminPanel() {
                 <p className="text-sm text-muted-foreground">
                   {selectedRecord.rollNumber ?? '--'} · {selectedRecord.examName ?? '--'}
                 </p>
+                {selectedRecord.mobile && (
+                  <p className="mt-0.5 text-sm font-semibold text-navy">
+                    {selectedRecord.mobile}
+                    {selectedRecord.studentName ? ` · ${selectedRecord.studentName}` : ''}
+                  </p>
+                )}
                 {selectedRecord.sourceUrl && (
                   <a
                     href={selectedRecord.sourceUrl}

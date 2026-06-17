@@ -17,21 +17,31 @@ class AdminPredictionController extends Controller
     {
         $this->ensureAdmin($request);
 
-        $runs = PredictionRun::query()
-            ->with(['exam', 'responseSheet'])
-            ->latest()
-            ->limit(200)
-            ->get()
+        $perPage = 10;
+        $page = max(1, (int) $request->query('page', 1));
+
+        $query = PredictionRun::query()->with(['exam', 'responseSheet', 'studentContact'])->latest();
+
+        $total = $query->count();
+        $runs = $query->forPage($page, $perPage)->get()
             ->map(fn (PredictionRun $run) => $this->summaryPayload($run));
 
-        return response()->json(['data' => $runs]);
+        return response()->json([
+            'data' => $runs,
+            'meta' => [
+                'total' => $total,
+                'per_page' => $perPage,
+                'current_page' => $page,
+                'last_page' => (int) ceil($total / $perPage),
+            ],
+        ]);
     }
 
     public function show(Request $request, PredictionRun $predictionRun): JsonResponse
     {
         $this->ensureAdmin($request);
 
-        $predictionRun->load(['exam.activeScoringRule', 'responseSheet.questions']);
+        $predictionRun->load(['exam.activeScoringRule', 'responseSheet.questions', 'studentContact']);
 
         return response()->json([
             'data' => [
@@ -107,6 +117,8 @@ class AdminPredictionController extends Controller
             'candidateName' => $run->responseSheet?->candidate_name,
             'rollNumber' => $run->responseSheet?->roll_number,
             'sourceUrl' => $run->responseSheet?->source_url,
+            'mobile' => $run->studentContact?->mobile,
+            'studentName' => $run->studentContact?->name,
             'category' => $run->category,
             'state' => $run->state,
             'gender' => $run->gender,

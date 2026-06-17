@@ -1,8 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useState } from 'react'
-import { Loader2, WandSparkles } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { CheckCircle2, Loader2, MessageCircle, WandSparkles } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
+import { sendOtp, verifyOtp } from '../api/predictions'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Select } from './ui/select'
@@ -84,6 +85,9 @@ const predictionSchema = z.object({
   state: z.string().optional(),
   uploadedHtml: z.string().optional(),
   examTab: z.enum(['ssc', 'rrb']),
+  mobile: z.string().optional(),
+  studentName: z.string().optional(),
+  otpSessionToken: z.string().optional(),
 })
 
 export type PredictionFormValues = z.infer<typeof predictionSchema>
@@ -100,6 +104,18 @@ export function PredictionForm({
   onSubmit,
 }: PredictionFormProps) {
   const [activeTab, setActiveTab] = useState<'ssc' | 'rrb'>('ssc')
+
+  // OTP flow state
+  const [mobileInput, setMobileInput] = useState('')
+  const [studentNameInput, setStudentNameInput] = useState('')
+  const [otpInput, setOtpInput] = useState('')
+  const [otpSending, setOtpSending] = useState(false)
+  const [otpVerifying, setOtpVerifying] = useState(false)
+  const [otpSent, setOtpSent] = useState(false)
+  const [otpError, setOtpError] = useState<string | null>(null)
+  const [verifiedMobile, setVerifiedMobile] = useState<string | null>(null)
+  const [showOtpSection, setShowOtpSection] = useState(false)
+  const otpInputRef = useRef<HTMLInputElement>(null)
 
   const {
     register,
@@ -127,6 +143,46 @@ export function PredictionForm({
   const switchTab = (tab: 'ssc' | 'rrb') => {
     setActiveTab(tab)
     setValue('examTab', tab)
+  }
+
+  const handleSendOtp = async () => {
+    const cleaned = mobileInput.trim()
+    if (!/^[6-9]\d{9}$/.test(cleaned)) {
+      setOtpError('Enter a valid 10-digit Indian mobile number.')
+      return
+    }
+    setOtpError(null)
+    setOtpSending(true)
+    try {
+      await sendOtp(cleaned)
+      setOtpSent(true)
+      setTimeout(() => otpInputRef.current?.focus(), 100)
+    } catch (e: unknown) {
+      setOtpError(e instanceof Error ? e.message : 'Failed to send OTP.')
+    } finally {
+      setOtpSending(false)
+    }
+  }
+
+  const handleVerifyOtp = async () => {
+    const cleaned = otpInput.trim()
+    if (cleaned.length !== 6) {
+      setOtpError('Enter the 6-digit OTP.')
+      return
+    }
+    setOtpError(null)
+    setOtpVerifying(true)
+    try {
+      const result = await verifyOtp(mobileInput.trim(), cleaned)
+      setVerifiedMobile(result.mobile)
+      setValue('mobile', result.mobile)
+      setValue('studentName', studentNameInput.trim() || undefined)
+      setValue('otpSessionToken', result.session_token)
+    } catch (e: unknown) {
+      setOtpError(e instanceof Error ? e.message : 'Invalid OTP. Please try again.')
+    } finally {
+      setOtpVerifying(false)
+    }
   }
 
   return (
@@ -195,7 +251,7 @@ export function PredictionForm({
               />
             </label>
 
-<div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-3">
               <label className="grid gap-2" htmlFor="category">
                 <span className="text-sm font-semibold text-foreground">
                   Category
@@ -239,6 +295,125 @@ export function PredictionForm({
                   ))}
                 </Select>
               </label>
+            </div>
+
+            {/* Optional WhatsApp notification via OTP */}
+            <div className="rounded-lg border border-border bg-muted/40">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between px-4 py-3 text-left"
+                onClick={() => setShowOtpSection((v) => !v)}
+                aria-expanded={showOtpSection}
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <MessageCircle size={15} aria-hidden className="text-green-600" />
+                  Get result on WhatsApp
+                  <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-green-700">
+                    Optional
+                  </span>
+                </span>
+                {verifiedMobile ? (
+                  <span className="flex items-center gap-1 text-xs font-semibold text-green-600">
+                    <CheckCircle2 size={13} aria-hidden />
+                    Verified
+                  </span>
+                ) : (
+                  <span className="text-xs text-muted-foreground">{showOtpSection ? '▲' : '▼'}</span>
+                )}
+              </button>
+
+              {showOtpSection && !verifiedMobile && (
+                <div className="border-t border-border px-4 pb-4 pt-3">
+                  <p className="mb-3 text-xs text-muted-foreground">
+                    Enter your mobile number to receive your result via WhatsApp. We'll send a one-time password to verify.
+                  </p>
+                  <div className="grid gap-3">
+                    <div className="grid gap-2">
+                      <label htmlFor="student-name" className="text-xs font-semibold text-foreground">
+                        Your Name
+                      </label>
+                      <Input
+                        id="student-name"
+                        type="text"
+                        placeholder="Enter your name"
+                        value={studentNameInput}
+                        onChange={(e) => setStudentNameInput(e.target.value)}
+                        disabled={otpSent}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <label htmlFor="otp-mobile" className="text-xs font-semibold text-foreground">
+                        Mobile Number <span className="text-red">*</span>
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="otp-mobile"
+                          type="tel"
+                          inputMode="numeric"
+                          placeholder="10-digit mobile number"
+                          value={mobileInput}
+                          onChange={(e) => setMobileInput(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                          disabled={otpSent}
+                          maxLength={10}
+                        />
+                        {!otpSent && (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="shrink-0"
+                            disabled={otpSending || mobileInput.length < 10}
+                            onClick={handleSendOtp}
+                          >
+                            {otpSending ? <Loader2 className="animate-spin" size={14} /> : 'Send OTP'}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {otpSent && (
+                      <div className="grid gap-2">
+                        <label htmlFor="otp-code" className="text-xs font-semibold text-foreground">
+                          Enter OTP
+                        </label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="otp-code"
+                            ref={otpInputRef}
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="6-digit OTP"
+                            value={otpInput}
+                            onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            maxLength={6}
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="shrink-0"
+                            disabled={otpVerifying || otpInput.length < 6}
+                            onClick={handleVerifyOtp}
+                          >
+                            {otpVerifying ? <Loader2 className="animate-spin" size={14} /> : 'Verify'}
+                          </Button>
+                        </div>
+                        <button
+                          type="button"
+                          className="self-start text-xs text-navy underline underline-offset-2"
+                          onClick={() => { setOtpSent(false); setOtpInput(''); setOtpError(null) }}
+                        >
+                          Change number
+                        </button>
+                      </div>
+                    )}
+
+                    {otpError && (
+                      <p className="text-xs font-medium text-red" role="alert">{otpError}</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <Button

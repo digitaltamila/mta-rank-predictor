@@ -3,8 +3,10 @@
 use App\Http\Controllers\Api\V1\AdminAuthController;
 use App\Http\Controllers\Api\V1\AdminPredictionController;
 use App\Http\Controllers\Api\V1\AdminScoringRuleController;
+use App\Http\Controllers\Api\V1\AdminSettingsController;
 use App\Http\Controllers\Api\V1\FeedbackController;
 use App\Http\Controllers\Api\V1\LeaderboardController;
+use App\Http\Controllers\Api\V1\OtpController;
 use App\Http\Controllers\Api\V1\PredictionController;
 use Illuminate\Support\Facades\Route;
 
@@ -23,6 +25,11 @@ Route::prefix('v1')->group(function () {
     Route::post('/feedback', [FeedbackController::class, 'store'])
         ->middleware('throttle:30,1');
 
+    Route::post('/otp/send', [OtpController::class, 'send'])
+        ->middleware('throttle:5,1');
+    Route::post('/otp/verify', [OtpController::class, 'verify'])
+        ->middleware('throttle:10,1');
+
     Route::post('/admin/login', [AdminAuthController::class, 'login'])
         ->middleware('throttle:10,1');
 
@@ -36,4 +43,6 @@ Route::prefix('v1')->group(function () {
     Route::patch('/admin/feedback/{feedback}', [FeedbackController::class, 'update']);
     Route::get('/admin/scoring-rules', [AdminScoringRuleController::class, 'index']);
     Route::patch('/admin/scoring-rules/{scoringRule}', [AdminScoringRuleController::class, 'update']);
+    Route::get('/admin/settings', [AdminSettingsController::class, 'index']);
+    Route::patch('/admin/settings', [AdminSettingsController::class, 'update']);
 });

@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePredictionRequest;
 use App\Http\Resources\PredictionRunResource;
+use App\Models\AppSetting;
 use App\Models\Exam;
+use App\Models\OtpVerification;
 use App\Models\PredictionRun;
 use App\Models\ResponseQuestion;
 use App\Models\ResponseSheet;
+use App\Models\StudentContact;
 use App\Repositories\ExamRepository;
 use App\Services\Prediction\RankPredictionService;
 use App\Services\Prediction\SelectionProbabilityService;
@@ -19,6 +22,8 @@ use App\Services\ResponseSheets\ResponseSheetParserException;
 use App\Services\ResponseSheets\UnsupportedResponseSheetProviderException;
 use App\Services\Scoring\ScoreCalculationService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class PredictionController extends Controller
@@ -83,6 +88,31 @@ class PredictionController extends Controller
             ]);
         }
 
+        // Resolve optional student contact via OTP session token
+        $mobile = $this->nullableDimension($request->input('mobile'));
+        $studentName = $this->nullableDimension($request->input('student_name'));
+        $otpSessionToken = $this->nullableDimension($request->input('otp_session_token'));
+        $studentContact = null;
+
+        if ($mobile !== null && $otpSessionToken !== null) {
+            $verified = OtpVerification::query()
+                ->where('mobile', $mobile)
+                ->where('session_token', $otpSessionToken)
+                ->whereNotNull('verified_at')
+                ->first();
+
+            if ($verified === null) {
+                throw ValidationException::withMessages([
+                    'otp_session_token' => 'OTP verification is invalid or expired. Please verify again.',
+                ]);
+            }
+
+            $studentContact = StudentContact::query()->updateOrCreate(
+                ['mobile' => $mobile],
+                array_filter(['name' => $studentName]),
+            );
+        }
+
         $category = $this->nullableDimension($request->input('category'));
         $state = $this->nullableDimension($request->input('rrb_zone')) ?? $this->nullableDimension($request->input('state'));
         $gender = $this->nullableDimension($request->input('gender'));
@@ -104,7 +134,7 @@ class PredictionController extends Controller
             $url, $urlHash, $parsedSheet, $exam, $cachedSheet, $hasCachedQuestions,
             $category, $state, $gender, $community, $paperLanguage, $jobStatus,
             $examTab, $answerKeyPasswordSupplied, $usedUploadedHtml,
-            $score, $ranks, $probability,
+            $score, $ranks, $probability, $studentContact,
         ) {
             // Persist the response sheet and its questions only when not using cached data
             if ($hasCachedQuestions) {
@@ -152,6 +182,7 @@ class PredictionController extends Controller
                 ],
                 [
                     'exam_id' => $exam->id,
+                    'student_contact_id' => $studentContact?->id,
                     'community' => $community,
                     'correct_count' => $score->correctCount,
                     'wrong_count' => $score->wrongCount,
@@ -189,9 +220,35 @@ class PredictionController extends Controller
             );
         });
 
+        $this->firePabblyWebhook($predictionRun, $studentContact);
+
         return new PredictionRunResource(
             $predictionRun->load(['exam.activeScoringRule', 'responseSheet.questions']),
         );
+    }
+
+    private function firePabblyWebhook(PredictionRun $run, ?StudentContact $contact): void
+    {
+        $webhookUrl = AppSetting::get('pabbly_webhook_url');
+
+        if (empty($webhookUrl) || $contact === null) {
+            return;
+        }
+
+        try {
+            Http::timeout(5)->post($webhookUrl, [
+                'mobile' => $contact->mobile,
+                'name' => $contact->name,
+                'exam' => $run->exam?->name,
+                'score' => (float) $run->score,
+                'overall_rank' => $run->overall_rank,
+                'category' => $run->category,
+                'state' => $run->state,
+                'prediction_id' => $run->id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Pabbly webhook failed', ['error' => $e->getMessage()]);
+        }
     }
 
     /**

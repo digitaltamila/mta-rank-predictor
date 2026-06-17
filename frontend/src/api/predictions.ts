@@ -1,4 +1,4 @@
-import { apiRequest } from './http'
+import { apiBaseUrl, apiRequest, ApiError } from './http'
 
 export type PredictionRequest = {
   responseSheetUrl: string
@@ -7,6 +7,9 @@ export type PredictionRequest = {
   state?: string
   uploadedHtml?: string
   examTab?: 'ssc' | 'rrb'
+  mobile?: string
+  studentName?: string
+  otpSessionToken?: string
 }
 
 export type PredictionSectionSummary = {
@@ -79,8 +82,40 @@ export async function createPrediction(
       state: input.state,
       uploaded_html: input.uploadedHtml,
       exam_tab: input.examTab,
+      mobile: input.mobile,
+      student_name: input.studentName,
+      otp_session_token: input.otpSessionToken,
     }),
   })
 
   return 'data' in response ? response.data : response
+}
+
+export async function sendOtp(mobile: string): Promise<{ status: string; message: string }> {
+  const response = await fetch(`${apiBaseUrl}/v1/otp/send`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mobile }),
+  })
+  const payload = await response.json()
+  if (!response.ok) {
+    throw new ApiError(payload.message ?? 'Failed to send OTP.', response.status, payload)
+  }
+  return payload
+}
+
+export async function verifyOtp(
+  mobile: string,
+  otp: string,
+): Promise<{ verified: boolean; session_token: string; mobile: string }> {
+  const response = await fetch(`${apiBaseUrl}/v1/otp/verify`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mobile, otp }),
+  })
+  const payload = await response.json()
+  if (!response.ok) {
+    throw new ApiError(payload.message ?? 'Invalid OTP.', response.status, payload)
+  }
+  return payload
 }

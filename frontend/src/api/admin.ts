@@ -17,6 +17,8 @@ export type AdminPredictionSummary = {
   candidateName: string | null
   rollNumber: string | null
   sourceUrl: string | null
+  mobile: string | null
+  studentName: string | null
   category: string | null
   state: string | null
   gender: string | null
@@ -29,6 +31,17 @@ export type AdminPredictionSummary = {
   stateRank: number | null
   createdAt: string | null
   usedUploadedHtml: boolean
+}
+
+export type AdminPaginationMeta = {
+  total: number
+  per_page: number
+  current_page: number
+  last_page: number
+}
+
+export type AdminSettings = {
+  pabbly_webhook_url: string | null
 }
 
 export type AdminQuestion = {
@@ -112,8 +125,11 @@ export async function adminLogin(email: string, password: string) {
   return payload as AdminLoginResponse
 }
 
-export const fetchAdminPredictions = (token: string) =>
-  adminRequest<{ data: AdminPredictionSummary[] }>('/v1/admin/predictions', token)
+export const fetchAdminPredictions = (token: string, page = 1) =>
+  adminRequest<{ data: AdminPredictionSummary[]; meta: AdminPaginationMeta }>(
+    `/v1/admin/predictions?page=${page}`,
+    token,
+  )
 
 export const fetchAdminPrediction = (token: string, id: string) =>
   adminRequest<{ data: AdminPredictionDetail }>(`/v1/admin/predictions/${id}`, token)
@@ -158,6 +174,15 @@ export type AdminScoringRule = {
     unansweredMarks: number
   } | null
 }
+
+export const fetchAdminSettings = (token: string) =>
+  adminRequest<{ data: AdminSettings }>('/v1/admin/settings', token)
+
+export const updateAdminSettings = (token: string, settings: Partial<AdminSettings>) =>
+  adminRequest<{ status: string }>('/v1/admin/settings', token, {
+    method: 'PATCH',
+    body: JSON.stringify(settings),
+  })
 
 export const fetchAdminScoringRules = (token: string) =>
   adminRequest<{ data: AdminScoringRule[] }>('/v1/admin/scoring-rules', token)

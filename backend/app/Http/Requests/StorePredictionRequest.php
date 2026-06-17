@@ -37,6 +37,9 @@ class StorePredictionRequest extends FormRequest
             'exam_tab' => ['nullable', 'string', 'max:32'],
             'answer_key_password' => ['nullable', 'string', 'max:128'],
             'uploaded_html' => ['nullable', 'string'],
+            'mobile' => ['nullable', 'string', 'regex:/^[6-9]\d{9}$/'],
+            'student_name' => ['nullable', 'string', 'max:128'],
+            'otp_session_token' => ['nullable', 'string', 'size:64'],
         ];
     }
 }

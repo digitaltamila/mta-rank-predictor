@@ -151,7 +151,17 @@ function CandidateApp() {
   }, [predictionMutation.error])
 
   const handleSubmit = (values: PredictionFormValues) => {
-    predictionMutation.mutate(values)
+    predictionMutation.mutate({
+      responseSheetUrl: values.responseSheetUrl,
+      category: values.category,
+      gender: values.gender,
+      state: values.state,
+      uploadedHtml: values.uploadedHtml,
+      examTab: values.examTab,
+      mobile: values.mobile,
+      studentName: values.studentName,
+      otpSessionToken: values.otpSessionToken,
+    })
   }
 
   return (
