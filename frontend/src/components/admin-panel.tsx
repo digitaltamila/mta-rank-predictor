@@ -19,6 +19,7 @@ import {
   adminLogout,
   deleteAdminPredictions,
   downloadDatabaseBackup,
+  exportAllAdminPredictions,
   fetchAdminFeedback,
   fetchAdminPrediction,
   fetchAdminPredictions,
@@ -121,6 +122,7 @@ export function AdminPanel() {
   } | null>(null)
   const [marksSaveStatus, setMarksSaveStatus] = useState<Record<number, string>>({})
   const [pruneStatus, setPruneStatus] = useState<string | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
 
@@ -640,10 +642,21 @@ export function AdminPanel() {
                   <Button
                     type="button"
                     variant="secondary"
-                    onClick={() => exportToCsv(filteredRecords)}
-                    disabled={filteredRecords.length === 0}
+                    disabled={isExporting}
+                    onClick={async () => {
+                      setIsExporting(true)
+                      try {
+                        const result = await exportAllAdminPredictions(token)
+                        exportToCsv(result.data)
+                      } catch {
+                        // fall back to current page
+                        exportToCsv(filteredRecords)
+                      } finally {
+                        setIsExporting(false)
+                      }
+                    }}
                   >
-                    <Download aria-hidden size={16} />
+                    {isExporting ? <Loader2 className="animate-spin" aria-hidden size={16} /> : <Download aria-hidden size={16} />}
                     Export CSV
                   </Button>
                   <Button

@@ -37,6 +37,19 @@ class AdminPredictionController extends Controller
         ]);
     }
 
+    public function export(Request $request): JsonResponse
+    {
+        $this->ensureAdmin($request);
+
+        $runs = PredictionRun::query()
+            ->with(['exam', 'responseSheet', 'studentContact'])
+            ->latest()
+            ->get()
+            ->map(fn (PredictionRun $run) => $this->summaryPayload($run));
+
+        return response()->json(['data' => $runs]);
+    }
+
     public function show(Request $request, PredictionRun $predictionRun): JsonResponse
     {
         $this->ensureAdmin($request);

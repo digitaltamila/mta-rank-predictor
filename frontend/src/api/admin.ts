@@ -131,6 +131,9 @@ export const fetchAdminPredictions = (token: string, page = 1) =>
     token,
   )
 
+export const exportAllAdminPredictions = (token: string) =>
+  adminRequest<{ data: AdminPredictionSummary[] }>('/v1/admin/predictions/export', token)
+
 export const fetchAdminPrediction = (token: string, id: string) =>
   adminRequest<{ data: AdminPredictionDetail }>(`/v1/admin/predictions/${id}`, token)
 

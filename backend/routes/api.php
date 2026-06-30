@@ -40,6 +40,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/admin/me', [AdminAuthController::class, 'me']);
     Route::post('/admin/logout', [AdminAuthController::class, 'logout']);
     Route::get('/admin/predictions', [AdminPredictionController::class, 'index']);
+    Route::get('/admin/predictions/export', [AdminPredictionController::class, 'export']);
     Route::get('/admin/predictions/{predictionRun}', [AdminPredictionController::class, 'show']);
     Route::delete('/admin/predictions/bulk', [AdminPredictionController::class, 'destroyBulk']);
     Route::post('/admin/predictions/prune-duplicates', [AdminPredictionController::class, 'pruneDuplicates']);
